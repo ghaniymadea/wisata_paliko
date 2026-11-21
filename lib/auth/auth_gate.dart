@@ -105,6 +105,16 @@ class _SignInPageState extends State<SignInPage> {
       if (mounted) setState(() => _notice = error.message);
     } on PostgrestException catch (error) {
       if (mounted) setState(() => _notice = error.message);
+    } catch (error) {
+      // Flutter Web dapat mengembalikan ClientException dari browser_client.dart
+      // saat jaringan/Supabase tidak dapat dijangkau. Tampilkan pesan di UI
+      // agar exception tidak menjadi unhandled error dan membuat aplikasi crash.
+      if (mounted) {
+        setState(
+          () => _notice =
+              'Tidak dapat terhubung ke server. Periksa koneksi internet lalu coba lagi.\n$error',
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

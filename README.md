@@ -6,9 +6,10 @@ Lima Puluh Kota, backed by Supabase.
 ## Supabase setup
 
 1. Create a Supabase project.
-2. Open **SQL Editor** and run [`supabase/schema.sql`](./supabase/schema.sql).
-   This creates the ERD tables, lookup data, row-level security policies,
-   authentication profile trigger, and database functions used by the app.
+2. Open **SQL Editor** and run [`supabase/schema.sql`](./supabase/schema.sql),
+   then run [`supabase/role_workflows.sql`](./supabase/role_workflows.sql).
+   The workflow migration adds reports, curator applications, notifications,
+   admin statistics, verification notes, and their role-based policies.
 3. Project URL and publishable key are configured as client defaults in
    `lib/main.dart`. Run the app:
 
@@ -44,3 +45,6 @@ upload files directly.
 - Read and submit tips, and vote tips as helpful.
 - Create public/private collections and add spots to collections through the
   repository.
+- Admin dashboard statistics, spot verification, report handling, and curator
+  application review.
+- User notifications and curator applications backed by Supabase.

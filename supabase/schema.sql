@@ -492,6 +492,11 @@ for select to anon, authenticated
 using (
   id_status_verifikasi = 2
   or (auth.uid() is not null and id_pembuat = auth.uid())
+  or exists (
+    select 1 from public.users u
+    join public.roles r on r.id = u.id_role
+    where u.id = auth.uid() and r.nama in ('Kurator', 'Admin')
+  )
 );
 drop policy if exists spots_owner_insert on public.spots;
 create policy spots_owner_insert on public.spots
@@ -500,8 +505,37 @@ with check (id_pembuat = auth.uid() and id_status_verifikasi = 1);
 drop policy if exists spots_owner_update on public.spots;
 create policy spots_owner_update on public.spots
 for update to authenticated
-using (id_pembuat = auth.uid() and id_status_verifikasi = 1)
+using (id_pembuat = auth.uid())
 with check (id_pembuat = auth.uid() and id_status_verifikasi = 1);
+
+drop policy if exists spots_moderator_update on public.spots;
+create policy spots_moderator_update on public.spots
+for update to authenticated
+using (
+  exists (
+    select 1 from public.users u
+    join public.roles r on r.id = u.id_role
+    where u.id = auth.uid() and r.nama in ('Kurator', 'Admin')
+  )
+)
+with check (
+  exists (
+    select 1 from public.users u
+    join public.roles r on r.id = u.id_role
+    where u.id = auth.uid() and r.nama in ('Kurator', 'Admin')
+  ) and id_status_verifikasi = 1
+);
+
+drop policy if exists spots_moderator_delete on public.spots;
+create policy spots_moderator_delete on public.spots
+for delete to authenticated
+using (
+  exists (
+    select 1 from public.users u
+    join public.roles r on r.id = u.id_role
+    where u.id = auth.uid() and r.nama in ('Kurator', 'Admin')
+  )
+);
 
 drop policy if exists media_public_read on public.media_spot;
 create policy media_public_read on public.media_spot
@@ -644,7 +678,194 @@ for delete to authenticated using (id_user = auth.uid());
 drop policy if exists activity_owner_read on public.log_aktivitas;
 create policy activity_owner_read on public.log_aktivitas
 for select to authenticated using (id_user = auth.uid());
+
 drop policy if exists activity_owner_insert on public.log_aktivitas;
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.users u
+    join public.roles r on r.id = u.id_role
+    where u.id = auth.uid() and r.nama = 'Admin'
+  );
+$$;
+
+drop policy if exists activity_admin_read on public.log_aktivitas;
+create policy activity_admin_read on public.log_aktivitas
+for select to authenticated using (public.is_admin());
+
+create or replace function public.is_moderator()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.users u
+    join public.roles r on r.id = u.id_role
+    where u.id = auth.uid() and r.nama in ('Kurator', 'Admin')
+  );
+$$;
+
+create or replace function public.set_spot_verification(
+  p_id_spot uuid,
+  p_approved boolean,
+  p_id_pemverifikasi uuid default auth.uid()
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_moderator() then
+    raise exception 'Akses verifikasi hanya untuk kurator atau admin';
+  end if;
+  update public.spots
+  set id_status_verifikasi = case when p_approved then 2 else 3 end,
+      id_pemverifikasi = p_id_pemverifikasi,
+      updated_at = now()
+  where id = p_id_spot;
+end;
+$$;
+
+create or replace function public.delete_spot_as_moderator(p_id_spot uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_moderator() then
+    raise exception 'Akses penghapusan hanya untuk kurator atau admin';
+  end if;
+  delete from public.spots where id = p_id_spot;
+end;
+$$;
+
+create or replace function public.delete_moderated_content(
+  p_table_name text,
+  p_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Akses penghapusan konten hanya untuk admin';
+  end if;
+  if p_table_name = 'cerita' then
+    delete from public.cerita where id = p_id;
+  elsif p_table_name = 'tips_warga' then
+    delete from public.tips_warga where id = p_id;
+  elsif p_table_name = 'media_spot' then
+    delete from public.media_spot where id = p_id;
+  elsif p_table_name = 'koleksi' then
+    delete from public.koleksi where id = p_id;
+  else
+    raise exception 'Jenis konten tidak didukung';
+  end if;
+end;
+$$;
+
+create or replace function public.update_user_role(p_id_user uuid, p_id_role bigint)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Akses pengubahan role hanya untuk admin';
+  end if;
+  if not exists (select 1 from public.roles where id = p_id_role) then
+    raise exception 'Role tidak valid';
+  end if;
+  update public.users set id_role = p_id_role where id = p_id_user;
+end;
+$$;
+
+create or replace function public.upsert_category(p_nama text, p_slug text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_nama text := trim(p_nama);
+  v_slug text := lower(trim(p_slug));
+  v_existing_id bigint;
+begin
+  if not public.is_admin() then
+    raise exception 'Akses master hanya untuk admin';
+  end if;
+  if v_nama = '' or v_slug = '' then
+    raise exception 'Nama dan slug kategori wajib diisi';
+  end if;
+  select k.id into v_existing_id
+  from public.kategori k
+  where k.slug = v_slug and k.nama <> v_nama
+  limit 1;
+  if v_existing_id is not null then
+    v_slug := v_slug || '-' || v_existing_id::text;
+  end if;
+  insert into public.kategori(nama, slug)
+  values (v_nama, v_slug)
+  on conflict (nama) do update set slug = excluded.slug;
+end;
+$$;
+
+create or replace function public.upsert_district(
+  p_id_kota bigint,
+  p_nama text,
+  p_slug text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_nama text := trim(p_nama);
+  v_slug text := lower(trim(p_slug));
+  v_existing_id bigint;
+begin
+  if not public.is_admin() then
+    raise exception 'Akses master hanya untuk admin';
+  end if;
+  if v_nama = '' or v_slug = '' then
+    raise exception 'Nama dan slug kecamatan wajib diisi';
+  end if;
+  if not exists (select 1 from public.kabupaten_kota where id = p_id_kota) then
+    raise exception 'Kabupaten/kota tidak ditemukan';
+  end if;
+
+  select k.id into v_existing_id
+  from public.kecamatan k
+  where k.slug = v_slug
+    and not (k.id_kabupaten_kota = p_id_kota and k.nama = v_nama)
+  limit 1;
+
+  if v_existing_id is not null then
+    v_slug := v_slug || '-' || p_id_kota::text;
+  end if;
+
+  insert into public.kecamatan(id_kabupaten_kota, nama, slug)
+  values (p_id_kota, v_nama, v_slug)
+  on conflict (id_kabupaten_kota, nama) do update
+    set slug = excluded.slug;
+end;
+$$;
 
 grant usage on schema public to anon, authenticated;
 grant select on public.roles, public.status_verifikasi, public.jenis_media,
@@ -657,7 +878,7 @@ grant select, insert, delete on public.vote_tips to authenticated;
 grant select, insert, update, delete on public.koleksi, public.detail_koleksi to authenticated;
 grant select, insert, delete on public.bookmark to authenticated;
 grant select on public.log_aktivitas to authenticated;
-grant select (id, username, nama, foto_profil) on public.users to authenticated;
+grant select (id, id_role, id_kecamatan_asal, username, nama, email, foto_profil) on public.users to authenticated;
 grant select (id, username, nama, foto_profil) on public.users to anon;
 grant update (username, nama, foto_profil, id_kecamatan_asal) on public.users to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
@@ -665,3 +886,9 @@ grant execute on function public.toggle_bookmark(uuid) to authenticated;
 grant execute on function public.toggle_vote_tips(uuid) to authenticated;
 grant execute on function public.add_spot_to_collection(uuid, uuid, text) to authenticated;
 grant execute on function public.record_story_view(uuid) to authenticated;
+grant execute on function public.set_spot_verification(uuid, boolean, uuid) to authenticated;
+grant execute on function public.delete_spot_as_moderator(uuid) to authenticated;
+grant execute on function public.delete_moderated_content(text, uuid) to authenticated;
+grant execute on function public.update_user_role(uuid, bigint) to authenticated;
+grant execute on function public.upsert_category(text, text) to authenticated;
+grant execute on function public.upsert_district(bigint, text, text) to authenticated;

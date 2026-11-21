@@ -1,9 +1,18 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'auth/auth_gate.dart';
 import 'data/explorer_repository.dart';
 import 'data/models.dart';
+import 'pages/admin_workflow_pages.dart';
+import 'pages/role_pages.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,6 +41,201 @@ const _clay = Color(0xFFC27D38);
 const _ink = Color(0xFF1E293B);
 const _muted = Color(0xFF718096);
 const _paper = Color(0xFFF7F8F4);
+
+Future<void> _openGoogleMaps(BuildContext context, Spot spot) async {
+  final latitude = spot.latitude;
+  final longitude = spot.longitude;
+  final query = latitude != null && longitude != null
+      ? '$latitude,$longitude'
+      : '${spot.name}, ${spot.area}, Sumatera Barat';
+  final uri = Uri.https('www.google.com', '/maps/search/', {
+    'api': '1',
+    'query': query,
+  });
+  if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+      context.mounted) {
+    _showMessage(context, 'Google Maps tidak dapat dibuka.');
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({required this.configured, super.key});
+
+  final bool configured;
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<double> _scale;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    )..forward();
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _scale = Tween<double>(
+      begin: 0.82,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    _timer = Timer(const Duration(milliseconds: 1700), _openApp);
+  }
+
+  void _openApp() {
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 350),
+        pageBuilder: (_, _, _) => SupabaseAuthGate(
+          configured: widget.configured,
+          authenticatedBuilder: (context) => const ExplorerShell(),
+        ),
+        transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF123D28), Color(0xFF237447), Color(0xFF8CBF72)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const _SplashOrb(size: 250, top: -80, right: -70),
+          const _SplashOrb(size: 180, bottom: 100, left: -90),
+          Center(
+            child: FadeTransition(
+              opacity: _fade,
+              child: ScaleTransition(
+                scale: _scale,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 92,
+                      height: 92,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.28),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.landscape_rounded,
+                        size: 52,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'LUAK EXPLORER',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Temukan cerita di setiap perjalanan',
+                      style: TextStyle(
+                        color: Color(0xFFE7F4E5),
+                        fontSize: 13,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 34),
+                    SizedBox(
+                      width: 110,
+                      child: LinearProgressIndicator(
+                        minHeight: 3,
+                        backgroundColor: Colors.white24,
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 28,
+            child: Text(
+              'PAYAKUMBUH • LIMA PULUH KOTA',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xD9FFFFFF),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _SplashOrb extends StatelessWidget {
+  const _SplashOrb({
+    required this.size,
+    this.top,
+    this.right,
+    this.bottom,
+    this.left,
+  });
+
+  final double size;
+  final double? top;
+  final double? right;
+  final double? bottom;
+  final double? left;
+
+  @override
+  Widget build(BuildContext context) => Positioned(
+    top: top,
+    right: right,
+    bottom: bottom,
+    left: left,
+    child: Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.07),
+        shape: BoxShape.circle,
+      ),
+    ),
+  );
+}
 
 class LuakExplorerApp extends StatelessWidget {
   const LuakExplorerApp({required this.configured, super.key});
@@ -72,10 +276,7 @@ class LuakExplorerApp extends StatelessWidget {
         bodySmall: TextStyle(color: _muted, fontSize: 12, height: 1.4),
       ),
     ),
-    home: SupabaseAuthGate(
-      configured: configured,
-      authenticatedBuilder: (context) => const ExplorerShell(),
-    ),
+    home: SplashScreen(configured: configured),
   );
 }
 
@@ -89,14 +290,40 @@ class ExplorerShell extends StatefulWidget {
 class _ExplorerShellState extends State<ExplorerShell> {
   final _repository = ExplorerRepository(Supabase.instance.client);
   int _tab = 0;
+  AppRole _role = AppRole.penjelajah;
+  JsonMap? _profile;
   List<Spot> _spots = [];
   List<Story> _stories = [];
   List<TravelCollection> _collections = [];
+  List<TravelCollection> _publicCollections = [];
   List<Map<String, dynamic>> _categories = [];
   List<Map<String, dynamic>> _districts = [];
   Set<String> _saved = {};
   bool _loading = true;
   Object? _loadError;
+
+  Future<void> _confirmSignOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Konfirmasi keluar'),
+        content: const Text('Apakah Anda yakin mau keluar?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Ya, keluar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await Supabase.instance.client.auth.signOut();
+    }
+  }
 
   @override
   void initState() {
@@ -110,19 +337,31 @@ class _ExplorerShellState extends State<ExplorerShell> {
       _loadError = null;
     });
     try {
-      final userId = Supabase.instance.client.auth.currentUser!.id;
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) {
+        throw const AuthException(
+          'Sesi login sudah berakhir. Silakan masuk kembali.',
+        );
+      }
+      final userId = user.id;
+      final profile = await _repository.getMyProfile();
+      final role = appRoleFromJson(asJsonMap(profile['roles']));
       final spots = await _repository.getApprovedSpots();
       final saved = await _repository.getBookmarkedSpotIds(userId);
       final stories = await _repository.getActiveStories();
       final collections = await _repository.getMyCollections();
+      final publicCollections = await _repository.getPublicCollections();
       final categories = await _repository.getCategories();
       final districts = await _repository.getDistricts();
       if (!mounted) return;
       setState(() {
+        _role = role;
+        _profile = profile;
         _spots = spots;
         _saved = saved;
         _stories = stories;
         _collections = collections;
+        _publicCollections = publicCollections;
         _categories = categories;
         _districts = districts;
         _loading = false;
@@ -156,7 +395,13 @@ class _ExplorerShellState extends State<ExplorerShell> {
 
   Future<void> _refreshCollections() async {
     final collections = await _repository.getMyCollections();
-    if (mounted) setState(() => _collections = collections);
+    final publicCollections = await _repository.getPublicCollections();
+    if (mounted) {
+      setState(() {
+        _collections = collections;
+        _publicCollections = publicCollections;
+      });
+    }
   }
 
   void _openSpot(Spot spot) {
@@ -165,9 +410,11 @@ class _ExplorerShellState extends State<ExplorerShell> {
         builder: (context) => SpotDetailPage(
           spot: spot,
           isSaved: _saved.contains(spot.id),
+          role: _role,
           onSave: () => _toggleSaved(spot),
           repository: _repository,
           onCollectionChanged: _refreshCollections,
+          onDataChanged: _loadData,
         ),
       ),
     );
@@ -241,6 +488,11 @@ class _ExplorerShellState extends State<ExplorerShell> {
                 }
               },
               onExplore: () => setState(() => _tab = 1),
+              onNotifications: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => NotificationsPage(repository: _repository),
+                ),
+              ),
             ),
             ExplorePage(
               spots: _spots,
@@ -258,8 +510,10 @@ class _ExplorerShellState extends State<ExplorerShell> {
                     required categoryId,
                     latitude,
                     longitude,
+                    imageBytes,
+                    imageName,
                   }) async {
-                    await _repository.createSpot(
+                    final spotId = await _repository.createSpot(
                       name: name,
                       slug: slug,
                       summary: summary,
@@ -268,6 +522,16 @@ class _ExplorerShellState extends State<ExplorerShell> {
                       latitude: latitude,
                       longitude: longitude,
                     );
+                    if (imageBytes is Uint8List && imageName is String) {
+                      await _repository.uploadSpotMedia(
+                        spotId: spotId,
+                        bytes: imageBytes,
+                        fileName: imageName,
+                        contentType: 'image/*',
+                        mediaTypeId: 1,
+                      );
+                    }
+                    await _loadData();
                     if (context.mounted) {
                       _showMessage(
                         context,
@@ -282,28 +546,19 @@ class _ExplorerShellState extends State<ExplorerShell> {
                   .where((spot) => _saved.contains(spot.id))
                   .toList(),
               collections: _collections,
-              profileName:
-                  (Supabase
-                          .instance
-                          .client
-                          .auth
-                          .currentUser
-                          ?.userMetadata?['nama']
-                      as String?) ??
-                  Supabase.instance.client.auth.currentUser?.email ??
-                  'Penjelajah',
-              username:
-                  (Supabase
-                          .instance
-                          .client
-                          .auth
-                          .currentUser
-                          ?.userMetadata?['username']
-                      as String?) ??
-                  'penjelajah',
+              publicCollections: _publicCollections,
+              role: _role,
+              repository: _repository,
+              profileName: jsonString(_profile?['nama']).isNotEmpty
+                  ? jsonString(_profile?['nama'])
+                  : Supabase.instance.client.auth.currentUser?.email ??
+                        'Penjelajah',
+              username: jsonString(_profile?['username']).isNotEmpty
+                  ? jsonString(_profile?['username'])
+                  : 'penjelajah',
               onOpen: _openSpot,
               onOpenCollection: _openCollection,
-              onSignOut: () => Supabase.instance.client.auth.signOut(),
+              onSignOut: _confirmSignOut,
               onRefresh: _loadData,
               onCreateCollection:
                   ({
@@ -319,6 +574,12 @@ class _ExplorerShellState extends State<ExplorerShell> {
                     await _loadData();
                   },
             ),
+            if (_role == AppRole.admin)
+              AdminPage(
+                repository: _repository,
+                onOpenSpot: _openSpot,
+                onDataChanged: _loadData,
+              ),
           ],
         ),
       ),
@@ -327,27 +588,33 @@ class _ExplorerShellState extends State<ExplorerShell> {
         backgroundColor: Colors.white,
         indicatorColor: const Color(0xFFE5F1E5),
         onDestinationSelected: (index) => setState(() => _tab = index),
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home_rounded),
             label: 'Feed',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.explore_outlined),
             selectedIcon: Icon(Icons.explore_rounded),
             label: 'Jelajah',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.location_on_outlined),
             selectedIcon: Icon(Icons.location_on_rounded),
             label: 'Peta Spot',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.bookmark_border_rounded),
             selectedIcon: Icon(Icons.bookmark_rounded),
             label: 'Tersimpan',
           ),
+          if (_role == AppRole.admin)
+            const NavigationDestination(
+              icon: Icon(Icons.admin_panel_settings_outlined),
+              selectedIcon: Icon(Icons.admin_panel_settings),
+              label: 'Admin',
+            ),
         ],
       ),
     );
@@ -363,6 +630,7 @@ class FeedPage extends StatefulWidget {
     required this.onOpen,
     required this.onOpenStory,
     required this.onExplore,
+    required this.onNotifications,
     super.key,
   });
 
@@ -373,6 +641,7 @@ class FeedPage extends StatefulWidget {
   final ValueChanged<Spot> onOpen;
   final ValueChanged<Story> onOpenStory;
   final VoidCallback onExplore;
+  final VoidCallback onNotifications;
 
   @override
   State<FeedPage> createState() => _FeedPageState();
@@ -435,8 +704,7 @@ class _FeedPageState extends State<FeedPage> {
                 ),
                 IconButton(
                   tooltip: 'Notifikasi',
-                  onPressed: () =>
-                      _showMessage(context, 'Belum ada notifikasi'),
+                  onPressed: widget.onNotifications,
                   icon: const Icon(
                     Icons.notifications_none_rounded,
                     color: _ink,
@@ -738,6 +1006,8 @@ class ExplorePage extends StatefulWidget {
     required int categoryId,
     double? latitude,
     double? longitude,
+    Uint8List? imageBytes,
+    String? imageName,
   })
   onSubmitSpot;
 
@@ -910,6 +1180,8 @@ class _ExplorePageState extends State<ExplorePage> {
     final summary = TextEditingController();
     final latitude = TextEditingController();
     final longitude = TextEditingController();
+    Uint8List? imageBytes;
+    String? imageName;
     var categoryId = (widget.categories.first['id'] as num).toInt();
     var districtId = (widget.districts.first['id'] as num).toInt();
     final result = await showDialog<bool>(
@@ -943,6 +1215,27 @@ class _ExplorePageState extends State<ExplorePage> {
                       validator: (value) => (value?.trim().isEmpty ?? true)
                           ? 'Ringkasan wajib diisi'
                           : null,
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final result = await FilePicker.pickFiles(
+                            type: FileType.image,
+                          );
+                          final file = result.isEmpty ? null : result.first;
+                          if (file != null) {
+                            final bytes = await file.readAsBytes();
+                            setDialogState(() {
+                              imageBytes = bytes;
+                              imageName = file.name;
+                            });
+                          }
+                        },
+                        icon: const Icon(Icons.image_outlined),
+                        label: Text(imageName ?? 'Pilih gambar spot'),
+                      ),
                     ),
                     DropdownButtonFormField<int>(
                       initialValue: categoryId,
@@ -1011,6 +1304,11 @@ class _ExplorePageState extends State<ExplorePage> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Koordinat bisa disalin dari Google Maps. Contoh: latitude -0.2317, longitude 100.6278.',
+                      style: TextStyle(color: _muted, fontSize: 11),
+                    ),
                   ],
                 ),
               ),
@@ -1060,6 +1358,8 @@ class _ExplorePageState extends State<ExplorePage> {
           categoryId: categoryId,
           latitude: double.tryParse(latitude.text.trim()),
           longitude: double.tryParse(longitude.text.trim()),
+          imageBytes: imageBytes,
+          imageName: imageName,
         );
       } on Exception catch (error) {
         if (mounted) _showMessage(context, 'Usulan gagal dikirim: $error');
@@ -1300,30 +1600,20 @@ class NearbyPage extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
+                  _InteractiveSpotMap(spots: spots, onOpen: onOpen),
                   if (spots.isNotEmpty)
-                    _NetworkPhoto(image: spots.first.image)
-                  else
-                    const ColoredBox(color: Color(0xFFE4EBDD)),
-                  Container(color: const Color(0x66E4EBDD)),
-                  for (
-                    var index = 0;
-                    index < spots.length && index < 3;
-                    index++
-                  )
                     Positioned(
-                      left: index == 0
-                          ? 42
-                          : index == 2
-                          ? 70
-                          : null,
-                      right: index == 1 ? 22 : null,
-                      top: index == 0
-                          ? 50
-                          : index == 1
-                          ? 128
-                          : null,
-                      bottom: index == 2 ? 72 : null,
-                      child: _MapPin(label: spots[index].name),
+                      left: 13,
+                      top: 13,
+                      child: FilledButton.icon(
+                        onPressed: () => _openGoogleMaps(context, spots.first),
+                        icon: const Icon(Icons.map_outlined, size: 18),
+                        label: const Text('Buka Google Maps'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: _forest,
+                        ),
+                      ),
                     ),
                   if (spots.isEmpty)
                     const Center(
@@ -1414,6 +1704,108 @@ class NearbyPage extends StatelessWidget {
   }
 }
 
+class _InteractiveSpotMap extends StatelessWidget {
+  const _InteractiveSpotMap({required this.spots, required this.onOpen});
+
+  final List<Spot> spots;
+  final ValueChanged<Spot> onOpen;
+
+  static const _defaultCenter = LatLng(-0.2299, 100.6320);
+
+  @override
+  Widget build(BuildContext context) {
+    final mappedSpots = spots
+        .where((spot) => spot.latitude != null && spot.longitude != null)
+        .toList();
+    final center = mappedSpots.isNotEmpty
+        ? LatLng(mappedSpots.first.latitude!, mappedSpots.first.longitude!)
+        : _defaultCenter;
+
+    return FlutterMap(
+      options: MapOptions(
+        initialCenter: center,
+        initialZoom: mappedSpots.isNotEmpty ? 11.5 : 10.5,
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all,
+        ),
+      ),
+      children: [
+        TileLayer(
+          urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          userAgentPackageName: 'com.luakexplorer.wisata_paliko',
+        ),
+        TileLayer(
+          // Label transparan untuk nama daerah, jalan, dan batas wilayah.
+          urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+          userAgentPackageName: 'com.luakexplorer.wisata_paliko',
+        ),
+        MarkerLayer(
+          markers: mappedSpots
+              .map(
+                (spot) => Marker(
+                  point: LatLng(spot.latitude!, spot.longitude!),
+                  width: 150,
+                  height: 66,
+                  child: GestureDetector(
+                    onTap: () => onOpen(spot),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x25000000),
+                                blurRadius: 5,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            spot.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: _ink,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.location_on, color: _forest, size: 30),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+        const RichAttributionWidget(
+          alignment: AttributionAlignment.bottomRight,
+          attributions: [
+            TextSourceAttribution('Esri, Maxar, Earthstar Geographics'),
+          ],
+        ),
+        if (mappedSpots.isEmpty)
+          const Center(
+            child: Card(
+              child: Padding(
+                padding: EdgeInsets.all(10),
+                child: Text('Belum ada koordinat spot untuk ditampilkan.'),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _NearbyTile extends StatelessWidget {
   const _NearbyTile({required this.spot, required this.onTap});
 
@@ -1446,55 +1838,13 @@ class _NearbyTile extends StatelessWidget {
   }
 }
 
-class _MapPin extends StatelessWidget {
-  const _MapPin({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-          decoration: BoxDecoration(
-            color: _forest,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x33000000),
-                blurRadius: 8,
-                offset: Offset(0, 3),
-              ),
-            ],
-          ),
-          child: const Icon(Icons.landscape, color: Colors.white, size: 17),
-        ),
-        Container(width: 2, height: 9, color: _forest),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: _ink,
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class SavedPage extends StatefulWidget {
   const SavedPage({
     required this.savedSpots,
     required this.collections,
+    required this.publicCollections,
+    required this.role,
+    required this.repository,
     required this.profileName,
     required this.username,
     required this.onOpen,
@@ -1507,6 +1857,9 @@ class SavedPage extends StatefulWidget {
 
   final List<Spot> savedSpots;
   final List<TravelCollection> collections;
+  final List<TravelCollection> publicCollections;
+  final AppRole role;
+  final ExplorerRepository repository;
   final String profileName;
   final String username;
   final ValueChanged<Spot> onOpen;
@@ -1632,15 +1985,23 @@ class _SavedPageState extends State<SavedPage> {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: _createCollection,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Buat'),
-                ),
+                if (widget.role != AppRole.penjelajah)
+                  TextButton.icon(
+                    onPressed: _createCollection,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Buat'),
+                  ),
               ],
             ),
           ),
         ),
+        if (widget.role == AppRole.penjelajah)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+            sliver: SliverToBoxAdapter(
+              child: CuratorApplicationCard(repository: widget.repository),
+            ),
+          ),
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 7, 16, 18),
           sliver: SliverToBoxAdapter(
@@ -1648,9 +2009,13 @@ class _SavedPageState extends State<SavedPage> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _viewChip('Semua Spot', 0),
+                  _viewChip('Spot disimpan', 0),
                   const SizedBox(width: 8),
-                  _viewChip('Papan Perjalanan', 1),
+                  _viewChip('Koleksi publik', 1),
+                  if (widget.role != AppRole.penjelajah) ...[
+                    const SizedBox(width: 8),
+                    _viewChip('Koleksi saya', 2),
+                  ],
                 ],
               ),
             ),
@@ -1683,6 +2048,23 @@ class _SavedPageState extends State<SavedPage> {
                 ),
               ),
             )
+        else if (_view == 1 && widget.publicCollections.isEmpty)
+          const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(child: Text('Belum ada koleksi publik.')),
+          )
+        else if (_view == 1)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            sliver: SliverList.builder(
+              itemCount: widget.publicCollections.length,
+              itemBuilder: (context, index) => _BoardCard(
+                collection: widget.publicCollections[index],
+                onTap: () =>
+                    widget.onOpenCollection(widget.publicCollections[index]),
+              ),
+            ),
+          )
         else if (widget.collections.isEmpty)
           const SliverFillRemaining(
             hasScrollBody: false,
@@ -1798,17 +2180,21 @@ class SpotDetailPage extends StatefulWidget {
   const SpotDetailPage({
     required this.spot,
     required this.isSaved,
+    required this.role,
     required this.onSave,
     required this.repository,
     required this.onCollectionChanged,
+    required this.onDataChanged,
     super.key,
   });
 
   final Spot spot;
   final bool isSaved;
+  final AppRole role;
   final Future<bool> Function() onSave;
   final ExplorerRepository repository;
   final Future<void> Function() onCollectionChanged;
+  final Future<void> Function() onDataChanged;
 
   @override
   State<SpotDetailPage> createState() => _SpotDetailPageState();
@@ -1828,6 +2214,57 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
   Future<void> _saveSpot() async {
     final success = await widget.onSave();
     if (success && mounted) setState(() => _isSaved = !_isSaved);
+  }
+
+  Future<void> _reportSpot() async {
+    final reason = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final submit = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Laporkan spot'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: reason,
+            minLines: 3,
+            maxLines: 5,
+            maxLength: 500,
+            decoration: const InputDecoration(labelText: 'Alasan laporan'),
+            validator: (value) => (value?.trim().length ?? 0) < 5
+                ? 'Alasan minimal 5 karakter'
+                : null,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(dialogContext, true);
+              }
+            },
+            child: const Text('Kirim laporan'),
+          ),
+        ],
+      ),
+    );
+    if (submit == true) {
+      try {
+        await widget.repository.createReport(
+          targetType: 'spot',
+          targetId: widget.spot.id,
+          reason: reason.text.trim(),
+        );
+        if (mounted) _showMessage(context, 'Laporan berhasil dikirim.');
+      } on Exception catch (error) {
+        if (mounted) _showMessage(context, 'Laporan gagal dikirim: $error');
+      }
+    }
+    reason.dispose();
   }
 
   Future<void> _writeTip() async {
@@ -1990,6 +2427,271 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
     }
   }
 
+  Future<void> _editSpot() async {
+    final districts = await widget.repository.getDistricts();
+    final name = TextEditingController(text: widget.spot.name);
+    final summary = TextEditingController(text: widget.spot.description);
+    final latitude = TextEditingController(
+      text: widget.spot.latitude?.toString(),
+    );
+    final longitude = TextEditingController(
+      text: widget.spot.longitude?.toString(),
+    );
+    var districtId =
+        widget.spot.districtId ??
+        (districts.isEmpty ? null : (districts.first['id'] as num).toInt());
+    Uint8List? imageBytes;
+    String? imageName;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit spot'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'Nama spot'),
+                ),
+                TextField(
+                  controller: summary,
+                  maxLines: 4,
+                  decoration: const InputDecoration(labelText: 'Ringkasan'),
+                ),
+                if (districts.isNotEmpty)
+                  DropdownButtonFormField<int>(
+                    initialValue: districtId,
+                    decoration: const InputDecoration(labelText: 'Kecamatan'),
+                    items: districts
+                        .map(
+                          (district) => DropdownMenuItem(
+                            value: (district['id'] as num).toInt(),
+                            child: Text(jsonString(district['nama'])),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) =>
+                        setDialogState(() => districtId = value),
+                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: latitude,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                          signed: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Latitude',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: longitude,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                          signed: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Longitude',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const Text(
+                  'Kosongkan keduanya jika lokasi belum tersedia.',
+                  style: TextStyle(color: _muted, fontSize: 11),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await FilePicker.pickFiles(
+                      type: FileType.image,
+                    );
+                    final file = picked.isEmpty ? null : picked.first;
+                    if (file != null) {
+                      final bytes = await file.readAsBytes();
+                      setDialogState(() {
+                        imageBytes = bytes;
+                        imageName = file.name;
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.image_outlined),
+                  label: Text(imageName ?? 'Ganti gambar'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Simpan'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final latitudeValue = double.tryParse(latitude.text.trim());
+    final longitudeValue = double.tryParse(longitude.text.trim());
+    final coordinatesValid =
+        (latitude.text.trim().isEmpty && longitude.text.trim().isEmpty) ||
+        (latitudeValue != null &&
+            longitudeValue != null &&
+            latitudeValue >= -90 &&
+            latitudeValue <= 90 &&
+            longitudeValue >= -180 &&
+            longitudeValue <= 180);
+    if (result == true &&
+        name.text.trim().isNotEmpty &&
+        summary.text.trim().isNotEmpty &&
+        coordinatesValid) {
+      try {
+        await widget.repository.updateSpotBasic(
+          spotId: widget.spot.id,
+          name: name.text.trim(),
+          summary: summary.text.trim(),
+          districtId: districtId,
+          latitude: latitudeValue,
+          longitude: longitudeValue,
+        );
+        if (imageBytes != null && imageName != null) {
+          await widget.repository.uploadSpotMedia(
+            spotId: widget.spot.id,
+            bytes: imageBytes!,
+            fileName: imageName!,
+            contentType: 'image/*',
+            mediaTypeId: 1,
+          );
+        }
+        if (mounted)
+          _showMessage(
+            context,
+            'Spot diperbarui dan menunggu verifikasi ulang.',
+          );
+        await widget.onDataChanged();
+      } on Exception catch (error) {
+        if (mounted) _showMessage(context, 'Edit spot gagal: $error');
+      }
+    } else if (result == true && mounted) {
+      _showMessage(
+        context,
+        'Nama, ringkasan, dan koordinat harus diisi dengan benar.',
+      );
+    }
+    name.dispose();
+    summary.dispose();
+    latitude.dispose();
+    longitude.dispose();
+  }
+
+  Future<void> _createStory() async {
+    final title = TextEditingController();
+    Uint8List? imageBytes;
+    String? imageName;
+    var expiresAt = DateTime.now().add(const Duration(days: 7));
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Buat cerita'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: title,
+                maxLength: 80,
+                decoration: const InputDecoration(labelText: 'Judul cerita'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final files = await FilePicker.pickFiles(
+                    type: FileType.image,
+                  );
+                  final file = files.isEmpty ? null : files.first;
+                  if (file != null) {
+                    final bytes = await file.readAsBytes();
+                    setDialogState(() {
+                      imageBytes = bytes;
+                      imageName = file.name;
+                    });
+                  }
+                },
+                icon: const Icon(Icons.image_outlined),
+                label: Text(imageName ?? 'Pilih gambar cerita'),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tayang sampai ${expiresAt.toLocal().toString().split(' ').first}',
+              ),
+              TextButton(
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                    initialDate: expiresAt,
+                  );
+                  if (picked != null)
+                    setDialogState(
+                      () => expiresAt = picked.add(const Duration(days: 1)),
+                    );
+                },
+                child: const Text('Ubah tanggal kedaluwarsa'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Posting cerita'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == true &&
+        title.text.trim().isNotEmpty &&
+        imageBytes != null &&
+        imageName != null) {
+      try {
+        final url = await widget.repository.uploadStoryMedia(
+          spotId: widget.spot.id,
+          bytes: imageBytes!,
+          fileName: imageName!,
+          contentType: 'image/jpeg',
+        );
+        await widget.repository.createStory(
+          spotId: widget.spot.id,
+          title: title.text.trim(),
+          mediaUrl: url,
+          expiresAt: expiresAt,
+        );
+        await widget.onDataChanged();
+        if (mounted) _showMessage(context, 'Cerita berhasil diposting.');
+      } on Exception catch (error) {
+        if (mounted) _showMessage(context, 'Cerita gagal diposting: $error');
+      }
+    } else if (result == true && mounted) {
+      _showMessage(context, 'Judul dan gambar cerita wajib diisi.');
+    }
+    title.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final spot = widget.spot;
@@ -2002,6 +2704,20 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
             foregroundColor: Colors.white,
             backgroundColor: _forest,
             actions: [
+              if (widget.spot.creatorId ==
+                      Supabase.instance.client.auth.currentUser?.id ||
+                  widget.role == AppRole.admin ||
+                  widget.role == AppRole.kurator)
+                IconButton(
+                  tooltip: 'Edit spot',
+                  onPressed: _editSpot,
+                  icon: const Icon(Icons.edit_outlined),
+                ),
+              IconButton(
+                tooltip: 'Laporkan spot',
+                onPressed: _reportSpot,
+                icon: const Icon(Icons.flag_outlined),
+              ),
               IconButton(
                 tooltip: 'Bagikan',
                 onPressed: () => _showMessage(context, 'Siap dibagikan'),
@@ -2081,12 +2797,27 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
                 const SizedBox(height: 20),
                 _InfoGrid(spot: spot),
                 const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () => _openGoogleMaps(context, spot),
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Text('Buka lokasi di Google Maps'),
+                ),
+                if (widget.role != AppRole.penjelajah)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: _addToCollection,
+                      icon: const Icon(Icons.playlist_add),
+                      label: const Text('Tambah ke koleksi'),
+                    ),
+                  ),
+                const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: OutlinedButton.icon(
-                    onPressed: _addToCollection,
-                    icon: const Icon(Icons.playlist_add),
-                    label: const Text('Tambah ke koleksi'),
+                    onPressed: _createStory,
+                    icon: const Icon(Icons.auto_stories_outlined),
+                    label: const Text('Buat cerita'),
                   ),
                 ),
                 const SizedBox(height: 24),

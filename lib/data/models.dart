@@ -9,11 +9,25 @@ JsonMap? asJsonMap(Object? value) {
 String jsonString(Object? value, [String fallback = '']) =>
     value is String ? value : value?.toString() ?? fallback;
 
+int? jsonInt(Object? value) =>
+    value is num ? value.toInt() : int.tryParse(value?.toString() ?? '');
+
+enum AppRole { penjelajah, kurator, admin }
+
+AppRole appRoleFromJson(JsonMap? json) {
+  final name = jsonString(asJsonMap(json)?['nama']).toLowerCase();
+  if (name == 'admin') return AppRole.admin;
+  if (name == 'kurator') return AppRole.kurator;
+  return AppRole.penjelajah;
+}
+
 class Spot {
   const Spot({
     required this.id,
+    required this.creatorId,
     required this.name,
     required this.area,
+    this.districtId,
     required this.category,
     required this.image,
     required this.description,
@@ -25,8 +39,10 @@ class Spot {
   });
 
   final String id;
+  final String creatorId;
   final String name;
   final String area;
+  final int? districtId;
   final String category;
   final String image;
   final String description;
@@ -60,8 +76,10 @@ class Spot {
 
     return Spot(
       id: jsonString(json['id']),
+      creatorId: jsonString(json['id_pembuat']),
       name: jsonString(json['nama'], 'Tempat wisata'),
       area: area.isEmpty ? 'Luak Limopuluah' : area,
+      districtId: jsonInt(json['id_kecamatan']),
       category: jsonString(category?['nama'], 'Wisata'),
       image: jsonString(image),
       description: jsonString(json['ringkasan_editorial']),
