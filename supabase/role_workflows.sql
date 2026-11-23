@@ -331,25 +331,24 @@ drop policy if exists collections_owner_delete on public.koleksi;
 drop policy if exists collections_curator_insert on public.koleksi;
 create policy collections_curator_insert on public.koleksi
 for insert to authenticated
-with check (id_kurator = auth.uid() and public.can_manage_collections());
+with check (id_kurator = auth.uid());
 
 drop policy if exists collections_curator_update on public.koleksi;
 create policy collections_curator_update on public.koleksi
 for update to authenticated
-using (id_kurator = auth.uid() and public.can_manage_collections())
-with check (id_kurator = auth.uid() and public.can_manage_collections());
+using (id_kurator = auth.uid())
+with check (id_kurator = auth.uid());
 
 drop policy if exists collections_curator_delete on public.koleksi;
 create policy collections_curator_delete on public.koleksi
 for delete to authenticated
-using (id_kurator = auth.uid() and public.can_manage_collections());
+using (id_kurator = auth.uid());
 
 drop policy if exists collection_details_owner_insert on public.detail_koleksi;
 create policy collection_details_owner_insert on public.detail_koleksi
 for insert to authenticated
 with check (
-  public.can_manage_collections()
-  and exists (
+  exists (
     select 1 from public.koleksi c
     where c.id = id_koleksi and c.id_kurator = auth.uid()
   )
@@ -363,8 +362,7 @@ drop policy if exists collection_details_owner_delete on public.detail_koleksi;
 create policy collection_details_owner_delete on public.detail_koleksi
 for delete to authenticated
 using (
-  public.can_manage_collections()
-  and exists (
+  exists (
     select 1 from public.koleksi c
     where c.id = id_koleksi and c.id_kurator = auth.uid()
   )

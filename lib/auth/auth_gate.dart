@@ -56,18 +56,21 @@ class _SignInPageState extends State<SignInPage> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _otp = TextEditingController();
   final _name = TextEditingController();
   final _username = TextEditingController();
   bool _isSignUp = false;
   bool _busy = false;
   bool _passwordVisible = false;
   bool _noticeIsSuccess = false;
+  bool _awaitingOtp = false;
   String? _notice;
 
   @override
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _otp.dispose();
     _name.dispose();
     _username.dispose();
     super.dispose();
@@ -83,6 +86,20 @@ class _SignInPageState extends State<SignInPage> {
 
     try {
       final auth = Supabase.instance.client.auth;
+      if (_awaitingOtp) {
+        final response = await auth.verifyOTP(
+          email: _email.text.trim(),
+          token: _otp.text.trim(),
+          type: OtpType.signup,
+        );
+        if (response.session != null && mounted) {
+          setState(() {
+            _awaitingOtp = false;
+            _notice = null;
+          });
+        }
+        return;
+      }
       if (_isSignUp) {
         final response = await auth.signUp(
           email: _email.text.trim(),
@@ -91,8 +108,9 @@ class _SignInPageState extends State<SignInPage> {
         );
         if (response.session == null && mounted) {
           setState(() {
+            _awaitingOtp = true;
             _noticeIsSuccess = true;
-            _notice = 'Pendaftaran berhasil. Periksa email untuk verifikasi, lalu masuk.';
+            _notice = 'Kode OTP sudah dikirim ke email Anda. Masukkan kode tersebut untuk mengaktifkan akun.';
           });
         }
       } else {
@@ -102,7 +120,9 @@ class _SignInPageState extends State<SignInPage> {
         );
       }
     } on AuthException catch (error) {
-      if (mounted) setState(() => _notice = error.message);
+      if (mounted) {
+        setState(() => _notice = _friendlyAuthMessage(error));
+      }
     } on PostgrestException catch (error) {
       if (mounted) setState(() => _notice = error.message);
     } catch (error) {
@@ -118,6 +138,76 @@ class _SignInPageState extends State<SignInPage> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _resendVerification() async {
+    final email = _email.text.trim();
+    if (email.isEmpty) return;
+
+    setState(() {
+      _busy = true;
+      _notice = null;
+    });
+
+    try {
+      await Supabase.instance.client.auth.resend(
+        type: OtpType.signup,
+        email: email,
+      );
+      if (mounted) {
+        setState(() {
+          _noticeIsSuccess = true;
+          _notice = 'Kode OTP sudah dikirim ulang. Periksa kotak masuk atau folder Spam.';
+        });
+      }
+    } on AuthException catch (error) {
+      if (mounted) setState(() => _notice = _friendlyAuthMessage(error));
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _notice =
+              'Email verifikasi belum dapat dikirim. Coba lagi beberapa saat.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  String _friendlyAuthMessage(AuthException error) {
+    final message = error.message.toLowerCase();
+    final code = (error.code ?? '').toLowerCase();
+
+    if (!_isSignUp &&
+        (code == 'invalid_credentials' ||
+            message.contains('invalid login credentials') ||
+            message.contains('invalid credentials'))) {
+      return 'Akun belum terdaftar atau email dan kata sandi tidak cocok. Silakan daftar terlebih dahulu jika belum memiliki akun.';
+    }
+
+    if (message.contains('email not confirmed') ||
+        message.contains('email belum dikonfirmasi')) {
+      return 'Email belum dikonfirmasi. Buka email verifikasi dari Luak Explorer, lalu coba masuk kembali.';
+    }
+
+    if (message.contains('invalid') &&
+        (message.contains('token') || message.contains('otp'))) {
+      return 'Kode OTP salah atau sudah kedaluwarsa. Periksa kembali atau kirim ulang kode.';
+    }
+
+    if (_isSignUp &&
+        (message.contains('already registered') ||
+            message.contains('user already exists') ||
+            code == 'user_already_exists')) {
+      return 'Email ini sudah terdaftar. Silakan masuk menggunakan akun tersebut.';
+    }
+
+    if (message.contains('password should be at least') ||
+        message.contains('password') && message.contains('weak')) {
+      return 'Kata sandi terlalu lemah. Gunakan minimal 8 karakter.';
+    }
+
+    return 'Autentikasi gagal. Periksa email dan kata sandi, lalu coba lagi.';
   }
 
   @override
@@ -189,10 +279,13 @@ class _SignInPageState extends State<SignInPage> {
                 color: Colors.white.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(15),
               ),
-              child: const Icon(
-                Icons.landscape_rounded,
-                color: Colors.white,
-                size: 27,
+              padding: const EdgeInsets.all(5),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(11),
+                child: Image.asset(
+                  'assets/luak_explorer_icon.png',
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
             const SizedBox(height: 18),
@@ -273,69 +366,83 @@ class _SignInPageState extends State<SignInPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (_isSignUp) ...[
+                if (_awaitingOtp) ...[
                   _input(
-                    controller: _name,
-                    label: 'Nama lengkap',
-                    autofillHints: const [AutofillHints.name],
-                    prefixIcon: Icons.person_outline_rounded,
-                    validator: (value) => _required(value, 'Nama'),
+                    controller: _otp,
+                    label: 'Kode OTP',
+                    keyboardType: TextInputType.number,
+                    prefixIcon: Icons.password_rounded,
+                    validator: (value) {
+                      final code = value?.trim() ?? '';
+                      if (code.length < 6) return 'Masukkan 6 digit kode OTP';
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 13),
-                  _input(
-                    controller: _username,
-                    label: 'Username',
-                    autofillHints: const [AutofillHints.newUsername],
-                    prefixIcon: Icons.alternate_email_rounded,
-                    validator: (value) => _required(value, 'Username'),
-                  ),
-                  const SizedBox(height: 13),
-                ],
-                _input(
-                  controller: _email,
-                  label: 'Email',
-                  keyboardType: TextInputType.emailAddress,
-                  autofillHints: const [AutofillHints.email],
-                  prefixIcon: Icons.mail_outline_rounded,
-                  validator: (value) {
-                    final email = value?.trim() ?? '';
-                    if (email.isEmpty || !email.contains('@')) {
-                      return 'Masukkan email yang valid';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 13),
-                _input(
-                  controller: _password,
-                  label: 'Kata sandi',
-                  autofillHints: [
-                    _isSignUp
-                        ? AutofillHints.newPassword
-                        : AutofillHints.password,
-                  ],
-                  prefixIcon: Icons.lock_outline_rounded,
-                  obscureText: !_passwordVisible,
-                  suffixIcon: IconButton(
-                    tooltip: _passwordVisible
-                        ? 'Sembunyikan kata sandi'
-                        : 'Tampilkan kata sandi',
-                    onPressed: () =>
-                        setState(() => _passwordVisible = !_passwordVisible),
-                    icon: Icon(
-                      _passwordVisible
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      color: const Color(0xFF718096),
+                ] else ...[
+                  if (_isSignUp) ...[
+                    _input(
+                      controller: _name,
+                      label: 'Nama lengkap',
+                      autofillHints: const [AutofillHints.name],
+                      prefixIcon: Icons.person_outline_rounded,
+                      validator: (value) => _required(value, 'Nama'),
                     ),
+                    const SizedBox(height: 13),
+                    _input(
+                      controller: _username,
+                      label: 'Username',
+                      autofillHints: const [AutofillHints.newUsername],
+                      prefixIcon: Icons.alternate_email_rounded,
+                      validator: (value) => _required(value, 'Username'),
+                    ),
+                    const SizedBox(height: 13),
+                  ],
+                  _input(
+                    controller: _email,
+                    label: 'Email',
+                    keyboardType: TextInputType.emailAddress,
+                    autofillHints: const [AutofillHints.email],
+                    prefixIcon: Icons.mail_outline_rounded,
+                    validator: (value) {
+                      final email = value?.trim() ?? '';
+                      if (email.isEmpty || !email.contains('@')) {
+                        return 'Masukkan email yang valid';
+                      }
+                      return null;
+                    },
                   ),
-                  validator: (value) {
-                    if ((value ?? '').length < 8) {
-                      return 'Kata sandi minimal 8 karakter';
-                    }
-                    return null;
-                  },
-                ),
+                  const SizedBox(height: 13),
+                  _input(
+                    controller: _password,
+                    label: 'Kata sandi',
+                    autofillHints: [
+                      _isSignUp
+                          ? AutofillHints.newPassword
+                          : AutofillHints.password,
+                    ],
+                    prefixIcon: Icons.lock_outline_rounded,
+                    obscureText: !_passwordVisible,
+                    suffixIcon: IconButton(
+                      tooltip: _passwordVisible
+                          ? 'Sembunyikan kata sandi'
+                          : 'Tampilkan kata sandi',
+                      onPressed: () =>
+                          setState(() => _passwordVisible = !_passwordVisible),
+                      icon: Icon(
+                        _passwordVisible
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: const Color(0xFF718096),
+                      ),
+                    ),
+                    validator: (value) {
+                      if ((value ?? '').length < 8) {
+                        return 'Kata sandi minimal 8 karakter';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
               ],
             ),
           ),
@@ -377,6 +484,13 @@ class _SignInPageState extends State<SignInPage> {
                 ],
               ),
             ),
+            if (_noticeIsSuccess && _isSignUp) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: _busy ? null : _resendVerification,
+                child: const Text('Kirim ulang kode OTP'),
+              ),
+            ],
           ],
           const SizedBox(height: 20),
           FilledButton(
@@ -402,7 +516,9 @@ class _SignInPageState extends State<SignInPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        _isSignUp ? 'Buat akun' : 'Masuk',
+                        _awaitingOtp
+                            ? 'Verifikasi OTP'
+                            : (_isSignUp ? 'Buat akun' : 'Masuk'),
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -415,7 +531,7 @@ class _SignInPageState extends State<SignInPage> {
           ),
           const SizedBox(height: 12),
           TextButton(
-            onPressed: _busy
+            onPressed: _busy || _awaitingOtp
                 ? null
                 : () => setState(() {
                     _isSignUp = !_isSignUp;
@@ -455,7 +571,7 @@ class _SignInPageState extends State<SignInPage> {
     final selected = _isSignUp == isSignUp;
     return Expanded(
       child: TextButton(
-        onPressed: _busy
+        onPressed: _busy || _awaitingOtp
             ? null
             : () {
                 if (_isSignUp == isSignUp) return;

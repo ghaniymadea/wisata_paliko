@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -56,6 +57,237 @@ Future<void> _openGoogleMaps(BuildContext context, Spot spot) async {
       context.mounted) {
     _showMessage(context, 'Google Maps tidak dapat dibuka.');
   }
+}
+
+({double latitude, double longitude})? _coordinatesFromMapsLink(String value) {
+  final text = Uri.decodeFull(value.trim());
+  if (text.isEmpty) return null;
+  final patterns = [
+    RegExp(r'@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)'),
+    RegExp(r'!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)'),
+    RegExp(
+      r'(?:[?&](?:q|query|ll)=|/search/)(-?\d+(?:\.\d+)?)[,;]\s*(-?\d+(?:\.\d+)?)',
+      caseSensitive: false,
+    ),
+    RegExp(r'(-?\d{1,2}(?:\.\d+)?)\s*[,;]\s*(-?\d{1,3}(?:\.\d+)?)'),
+  ];
+  for (final pattern in patterns) {
+    final match = pattern.firstMatch(text);
+    if (match != null) {
+      final latitude = double.tryParse(match.group(1)!);
+      final longitude = double.tryParse(match.group(2)!);
+      if (latitude != null &&
+          longitude != null &&
+          latitude >= -90 &&
+          latitude <= 90 &&
+          longitude >= -180 &&
+          longitude <= 180) {
+        return (latitude: latitude, longitude: longitude);
+      }
+    }
+  }
+  return null;
+}
+
+Future<({double latitude, double longitude})?> _resolveMapsLink(
+  String value,
+) async {
+  final local = _coordinatesFromMapsLink(value);
+  if (local != null) return local;
+  if (!value.trim().contains('maps.app.goo.gl') &&
+      !value.trim().contains('goo.gl')) {
+    return null;
+  }
+  try {
+    final response = await Supabase.instance.client.functions.invoke(
+      'resolve-maps-link',
+      body: {'url': value.trim()},
+    );
+    final data = asJsonMap(response.data);
+    final latitude = (data?['latitude'] as num?)?.toDouble();
+    final longitude = (data?['longitude'] as num?)?.toDouble();
+    if (latitude != null && longitude != null) {
+      return (latitude: latitude, longitude: longitude);
+    }
+  } on Exception {
+    // Pengguna tetap bisa memakai input koordinat manual.
+  }
+  return null;
+}
+
+Future<void> _shareSpot(
+  BuildContext context,
+  Spot spot, {
+  ExplorerRepository? repository,
+}) async {
+  final mapsQuery = spot.latitude != null && spot.longitude != null
+      ? '${spot.latitude},${spot.longitude}'
+      : '${spot.name}, ${spot.area}, Sumatera Barat';
+  final mapsUrl = Uri.https('www.google.com', '/maps/search/', {
+    'api': '1',
+    'query': mapsQuery,
+  });
+  try {
+    await repository?.recordSpotShare(spot.id);
+    await SharePlus.instance.share(
+      ShareParams(
+        title: spot.name,
+        text:
+            '${spot.name}\n${spot.area}\n\n${spot.description}\n\nLokasi: $mapsUrl',
+      ),
+    );
+  } on Exception catch (error) {
+    if (context.mounted) _showMessage(context, 'Gagal membagikan spot: $error');
+  }
+}
+
+Future<void> _openStoryViewer(
+  BuildContext context,
+  Story story,
+  ExplorerRepository repository,
+) async {
+  try {
+    await repository.recordStoryView(story.id);
+  } on Exception {
+    // Gagal mencatat view tidak boleh menghalangi pengguna melihat cerita.
+  }
+  if (!context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    barrierColor: Colors.black87,
+    builder: (dialogContext) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: AspectRatio(
+          aspectRatio: 9 / 16,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(color: const Color(0xFF101713)),
+              InteractiveViewer(
+                minScale: 1,
+                maxScale: 3,
+                child: Image.network(
+                  story.image,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  loadingBuilder: (context, child, progress) => progress == null
+                      ? child
+                      : const Center(
+                          child: CircularProgressIndicator(color: Colors.white),
+                        ),
+                  errorBuilder: (_, error, stackTrace) => const Center(
+                    child: Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.white70,
+                      size: 48,
+                    ),
+                  ),
+                ),
+              ),
+              IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.62),
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.72),
+                      ],
+                      stops: const [0, 0.36, 1],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 14,
+                left: 14,
+                right: 14,
+                child: Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: const LinearProgressIndicator(
+                        value: 1,
+                        minHeight: 3,
+                        backgroundColor: Colors.white38,
+                        valueColor: AlwaysStoppedAnimation(Colors.white),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.auto_stories_rounded,
+                            color: Colors.white,
+                            size: 19,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            story.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          tooltip: 'Tutup cerita',
+                          color: Colors.white,
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                left: 16,
+                bottom: 16,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.28),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.18),
+                    ),
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Text(
+                      'Cerita pengguna · tayang 24 jam',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class SplashScreen extends StatefulWidget {
@@ -144,11 +376,7 @@ class _SplashScreenState extends State<SplashScreen>
                           color: Colors.white.withValues(alpha: 0.28),
                         ),
                       ),
-                      child: const Icon(
-                        Icons.landscape_rounded,
-                        size: 52,
-                        color: Colors.white,
-                      ),
+                      child: const _LogoImage(size: 92),
                     ),
                     const SizedBox(height: 24),
                     const Text(
@@ -255,6 +483,106 @@ class LuakExplorerApp extends StatelessWidget {
         secondary: _clay,
         surface: _paper,
       ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 12,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+        titleTextStyle: const TextStyle(
+          color: _ink,
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.3,
+        ),
+        contentTextStyle: const TextStyle(
+          color: _ink,
+          fontSize: 14,
+          height: 1.45,
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFFF8FAF7),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 15,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFFE1E8DF), width: 1),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFFE1E8DF), width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: _forest, width: 1.7),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFFD64545)),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFFD64545), width: 1.5),
+        ),
+        labelStyle: const TextStyle(color: _muted, fontSize: 13),
+        hintStyle: const TextStyle(color: Color(0xFF9AA69C), fontSize: 13),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          backgroundColor: const WidgetStatePropertyAll(Colors.white),
+          elevation: const WidgetStatePropertyAll(10),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(vertical: 6),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFFF8FAF7),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: const BorderSide(color: Color(0xFFE1E8DF)),
+          ),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 46),
+          padding: const EdgeInsets.symmetric(horizontal: 17),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          side: const BorderSide(color: Color(0xFFB9C8BA), width: 1.2),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        elevation: 8,
+        backgroundColor: const Color(0xFF18311F),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        contentTextStyle: const TextStyle(
+          color: Colors.white,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+        insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+      ),
       textTheme: const TextTheme(
         headlineSmall: TextStyle(
           color: _ink,
@@ -289,7 +617,9 @@ class ExplorerShell extends StatefulWidget {
 
 class _ExplorerShellState extends State<ExplorerShell> {
   final _repository = ExplorerRepository(Supabase.instance.client);
+  Timer? _railHoverTimer;
   int _tab = 0;
+  bool _railExtended = false;
   AppRole _role = AppRole.penjelajah;
   JsonMap? _profile;
   List<Spot> _spots = [];
@@ -300,7 +630,23 @@ class _ExplorerShellState extends State<ExplorerShell> {
   List<Map<String, dynamic>> _districts = [];
   Set<String> _saved = {};
   bool _loading = true;
+  bool _hasLoaded = false;
   Object? _loadError;
+
+  void _setRailExtended(bool extended) {
+    _railHoverTimer?.cancel();
+    _railHoverTimer = Timer(Duration(milliseconds: extended ? 70 : 220), () {
+      if (mounted && _railExtended != extended) {
+        setState(() => _railExtended = extended);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _railHoverTimer?.cancel();
+    super.dispose();
+  }
 
   Future<void> _confirmSignOut() async {
     final confirmed = await showDialog<bool>(
@@ -333,7 +679,9 @@ class _ExplorerShellState extends State<ExplorerShell> {
 
   Future<void> _loadData() async {
     setState(() {
-      _loading = true;
+      // Saat refresh, pertahankan halaman yang sedang terlihat. Loading penuh
+      // hanya dipakai pada pemuatan pertama ketika belum ada data.
+      _loading = !_hasLoaded;
       _loadError = null;
     });
     try {
@@ -346,13 +694,22 @@ class _ExplorerShellState extends State<ExplorerShell> {
       final userId = user.id;
       final profile = await _repository.getMyProfile();
       final role = appRoleFromJson(asJsonMap(profile['roles']));
-      final spots = await _repository.getApprovedSpots();
-      final saved = await _repository.getBookmarkedSpotIds(userId);
-      final stories = await _repository.getActiveStories();
-      final collections = await _repository.getMyCollections();
-      final publicCollections = await _repository.getPublicCollections();
-      final categories = await _repository.getCategories();
-      final districts = await _repository.getDistricts();
+      final results = await Future.wait<dynamic>([
+        _repository.getApprovedSpots(),
+        _repository.getBookmarkedSpotIds(userId),
+        _repository.getActiveStories(),
+        _repository.getMyCollections(),
+        _repository.getPublicCollections(),
+        _repository.getCategories(),
+        _repository.getDistricts(),
+      ]);
+      final spots = results[0] as List<Spot>;
+      final saved = results[1] as Set<String>;
+      final stories = results[2] as List<Story>;
+      final collections = results[3] as List<TravelCollection>;
+      final publicCollections = results[4] as List<TravelCollection>;
+      final categories = results[5] as List<Map<String, dynamic>>;
+      final districts = results[6] as List<Map<String, dynamic>>;
       if (!mounted) return;
       setState(() {
         _role = role;
@@ -365,6 +722,7 @@ class _ExplorerShellState extends State<ExplorerShell> {
         _categories = categories;
         _districts = districts;
         _loading = false;
+        _hasLoaded = true;
       });
     } on Exception catch (error) {
       if (!mounted) return;
@@ -390,6 +748,15 @@ class _ExplorerShellState extends State<ExplorerShell> {
     } on Exception catch (error) {
       if (mounted) _showMessage(context, 'Bookmark gagal disimpan: $error');
       return false;
+    }
+  }
+
+  Future<void> _toggleLike(Spot spot) async {
+    try {
+      await _repository.toggleSpotLike(spot.id);
+      await _loadData();
+    } on Exception catch (error) {
+      if (mounted) _showMessage(context, 'Like gagal disimpan: $error');
     }
   }
 
@@ -420,6 +787,179 @@ class _ExplorerShellState extends State<ExplorerShell> {
     );
   }
 
+  Future<void> _createStoryFromFeed() async {
+    if (_spots.isEmpty) {
+      _showMessage(context, 'Belum ada spot yang bisa dipilih untuk cerita.');
+      return;
+    }
+    final title = TextEditingController(text: 'Cerita baru');
+    Spot selectedSpot = _spots.first;
+    Uint8List? imageBytes;
+    String? imageName;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 4),
+          contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          title: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Tambah cerita'),
+              SizedBox(height: 5),
+              Text(
+                'Bagikan momen terbaikmu selama 24 jam.',
+                style: TextStyle(
+                  color: _muted,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 430,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<Spot>(
+                  value: selectedSpot,
+                  decoration: const InputDecoration(
+                    labelText: 'Pilih spot',
+                    prefixIcon: Icon(Icons.location_on_outlined),
+                  ),
+                  items: _spots
+                      .map(
+                        (spot) => DropdownMenuItem(
+                          value: spot,
+                          child: Text(
+                            spot.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (spot) {
+                    if (spot != null) setDialogState(() => selectedSpot = spot);
+                  },
+                ),
+                TextField(
+                  controller: title,
+                  maxLength: 80,
+                  decoration: const InputDecoration(
+                    labelText: 'Keterangan cerita',
+                    prefixIcon: Icon(Icons.edit_note_outlined),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 46),
+                  ),
+                  onPressed: () async {
+                    final files = await FilePicker.pickFiles(
+                      type: FileType.image,
+                    );
+                    final file = files.isEmpty ? null : files.first;
+                    if (file != null) {
+                      final bytes = await file.readAsBytes();
+                      setDialogState(() {
+                        imageBytes = bytes;
+                        imageName = file.name;
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  label: Text(imageName ?? 'Pilih foto dari perangkat'),
+                ),
+                if (imageBytes != null) ...[
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.memory(
+                      imageBytes!,
+                      width: double.infinity,
+                      height: 140,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _forest.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.schedule_outlined, size: 17, color: _forest),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Cerita akan tampil selama 24 jam.',
+                          style: TextStyle(color: _forest, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 46),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+              ),
+              onPressed: imageBytes == null
+                  ? null
+                  : () => Navigator.pop(dialogContext, true),
+              child: const Text('Posting'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == true && imageBytes != null && imageName != null) {
+      try {
+        final url = await _repository.uploadStoryMedia(
+          spotId: selectedSpot.id,
+          bytes: imageBytes!,
+          fileName: imageName!,
+          contentType: 'image/jpeg',
+        );
+        await _repository.createStory(
+          spotId: selectedSpot.id,
+          title: title.text.trim().isEmpty ? 'Cerita baru' : title.text.trim(),
+          mediaUrl: url,
+          expiresAt: DateTime.now().add(const Duration(hours: 24)),
+        );
+        await _loadData();
+        if (mounted) _showMessage(context, 'Cerita berhasil ditambahkan.');
+      } on Exception catch (error) {
+        if (mounted) _showMessage(context, 'Cerita gagal ditambahkan: $error');
+      }
+    } else if (result == true && mounted) {
+      _showMessage(context, 'Foto cerita wajib dipilih.');
+    }
+    title.dispose();
+  }
+
   void _openCollection(TravelCollection collection) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -437,7 +977,7 @@ class _ExplorerShellState extends State<ExplorerShell> {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    if (_loadError != null) {
+    if (_loadError != null && !_hasLoaded) {
       return Scaffold(
         body: Center(
           child: Padding(
@@ -464,159 +1004,243 @@ class _ExplorerShellState extends State<ExplorerShell> {
         ),
       );
     }
-    return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: IndexedStack(
-          index: _tab,
-          children: [
-            FeedPage(
-              spots: _spots,
-              stories: _stories,
-              saved: _saved,
-              onSave: _toggleSaved,
-              onOpen: _openSpot,
-              onOpenStory: (story) async {
-                try {
-                  await _repository.recordStoryView(story.id);
-                  final spot = _spots.where((item) => item.id == story.spotId);
-                  if (spot.isNotEmpty) _openSpot(spot.first);
-                } on Exception catch (error) {
-                  if (context.mounted) {
-                    _showMessage(context, 'Cerita gagal dibuka: $error');
-                  }
-                }
-              },
-              onExplore: () => setState(() => _tab = 1),
-              onNotifications: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => NotificationsPage(repository: _repository),
-                ),
-              ),
-            ),
-            ExplorePage(
-              spots: _spots,
-              categories: _categories,
-              districts: _districts,
-              saved: _saved,
-              onSave: _toggleSaved,
-              onOpen: _openSpot,
-              onSubmitSpot:
-                  ({
-                    required name,
-                    required slug,
-                    required summary,
-                    required districtId,
-                    required categoryId,
-                    latitude,
-                    longitude,
-                    imageBytes,
-                    imageName,
-                  }) async {
-                    final spotId = await _repository.createSpot(
-                      name: name,
-                      slug: slug,
-                      summary: summary,
-                      districtId: districtId,
-                      categoryId: categoryId,
-                      latitude: latitude,
-                      longitude: longitude,
-                    );
-                    if (imageBytes is Uint8List && imageName is String) {
-                      await _repository.uploadSpotMedia(
-                        spotId: spotId,
-                        bytes: imageBytes,
-                        fileName: imageName,
-                        contentType: 'image/*',
-                        mediaTypeId: 1,
-                      );
-                    }
-                    await _loadData();
-                    if (context.mounted) {
-                      _showMessage(
-                        context,
-                        'Usulan spot terkirim dan menunggu verifikasi.',
-                      );
-                    }
-                  },
-            ),
-            NearbyPage(spots: _spots, onOpen: _openSpot),
-            SavedPage(
-              savedSpots: _spots
-                  .where((spot) => _saved.contains(spot.id))
-                  .toList(),
-              collections: _collections,
-              publicCollections: _publicCollections,
-              role: _role,
-              repository: _repository,
-              profileName: jsonString(_profile?['nama']).isNotEmpty
-                  ? jsonString(_profile?['nama'])
-                  : Supabase.instance.client.auth.currentUser?.email ??
-                        'Penjelajah',
-              username: jsonString(_profile?['username']).isNotEmpty
-                  ? jsonString(_profile?['username'])
-                  : 'penjelajah',
-              onOpen: _openSpot,
-              onOpenCollection: _openCollection,
-              onSignOut: _confirmSignOut,
-              onRefresh: _loadData,
-              onCreateCollection:
-                  ({
-                    required title,
-                    required description,
-                    required isPublic,
-                  }) async {
-                    await _repository.createCollection(
-                      title: title,
-                      description: description,
-                      isPublic: isPublic,
-                    );
-                    await _loadData();
-                  },
-            ),
-            if (_role == AppRole.admin)
-              AdminPage(
-                repository: _repository,
-                onOpenSpot: _openSpot,
-                onDataChanged: _loadData,
-              ),
-          ],
+    final pages = [
+      FeedPage(
+        spots: _spots,
+        districts: _districts,
+        stories: _stories,
+        saved: _saved,
+        onSave: _toggleSaved,
+        onLike: _toggleLike,
+        onShare: (spot) => _shareSpot(context, spot, repository: _repository),
+        onOpen: _openSpot,
+        onOpenStory: (story) async {
+          await _openStoryViewer(context, story, _repository);
+        },
+        onAddStory: _createStoryFromFeed,
+        onOpenTips: (spot) =>
+            _showTipsSheet(context, _repository, spot, onSubmitted: _loadData),
+        onExplore: () => setState(() => _tab = 1),
+        onNotifications: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => NotificationsPage(repository: _repository),
+          ),
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        backgroundColor: Colors.white,
-        indicatorColor: const Color(0xFFE5F1E5),
-        onDestinationSelected: (index) => setState(() => _tab = index),
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'Feed',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore_rounded),
-            label: 'Jelajah',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.location_on_outlined),
-            selectedIcon: Icon(Icons.location_on_rounded),
-            label: 'Peta Spot',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.bookmark_border_rounded),
-            selectedIcon: Icon(Icons.bookmark_rounded),
-            label: 'Tersimpan',
-          ),
-          if (_role == AppRole.admin)
-            const NavigationDestination(
-              icon: Icon(Icons.admin_panel_settings_outlined),
-              selectedIcon: Icon(Icons.admin_panel_settings),
-              label: 'Admin',
-            ),
-        ],
+      ExplorePage(
+        spots: _spots,
+        categories: _categories,
+        districts: _districts,
+        saved: _saved,
+        onSave: _toggleSaved,
+        onOpen: _openSpot,
+        onSubmitSpot:
+            ({
+              required name,
+              required slug,
+              required summary,
+              required districtId,
+              required categoryId,
+              latitude,
+              longitude,
+              imageBytes,
+              imageName,
+            }) async {
+              final spotId = await _repository.createSpot(
+                name: name,
+                slug: slug,
+                summary: summary,
+                districtId: districtId,
+                categoryId: categoryId,
+                latitude: latitude,
+                longitude: longitude,
+              );
+              if (imageBytes is Uint8List && imageName is String) {
+                await _repository.uploadSpotMedia(
+                  spotId: spotId,
+                  bytes: imageBytes,
+                  fileName: imageName,
+                  contentType: 'image/*',
+                  mediaTypeId: 1,
+                );
+              }
+              await _loadData();
+              if (context.mounted) {
+                _showMessage(
+                  context,
+                  'Usulan spot terkirim dan menunggu verifikasi.',
+                );
+              }
+            },
       ),
+      NearbyPage(spots: _spots, onOpen: _openSpot),
+      SavedPage(
+        savedSpots: _spots.where((spot) => _saved.contains(spot.id)).toList(),
+        collections: _collections,
+        publicCollections: _publicCollections,
+        role: _role,
+        repository: _repository,
+        profileName: jsonString(_profile?['nama']).isNotEmpty
+            ? jsonString(_profile?['nama'])
+            : Supabase.instance.client.auth.currentUser?.email ?? 'Penjelajah',
+        username: jsonString(_profile?['username']).isNotEmpty
+            ? jsonString(_profile?['username'])
+            : 'penjelajah',
+        onOpen: _openSpot,
+        onOpenCollection: _openCollection,
+        onSignOut: _confirmSignOut,
+        onRefresh: _loadData,
+        onCreateCollection:
+            ({required title, required description, required isPublic}) async {
+              await _repository.createCollection(
+                title: title,
+                description: description,
+                isPublic: isPublic,
+              );
+              await _loadData();
+            },
+      ),
+      if (_role == AppRole.admin)
+        AdminPage(
+          repository: _repository,
+          onOpenSpot: _openSpot,
+          onDataChanged: _loadData,
+        ),
+    ];
+
+    final destinations = [
+      const NavigationDestination(
+        icon: Icon(Icons.home_outlined),
+        selectedIcon: Icon(Icons.home_rounded),
+        label: 'Feed',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.explore_outlined),
+        selectedIcon: Icon(Icons.explore_rounded),
+        label: 'Jelajah',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.location_on_outlined),
+        selectedIcon: Icon(Icons.location_on_rounded),
+        label: 'Peta Spot',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.bookmark_border_rounded),
+        selectedIcon: Icon(Icons.bookmark_rounded),
+        label: 'Tersimpan',
+      ),
+      if (_role == AppRole.admin)
+        const NavigationDestination(
+          icon: Icon(Icons.admin_panel_settings_outlined),
+          selectedIcon: Icon(Icons.admin_panel_settings),
+          label: 'Admin',
+        ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 900;
+        final content = Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1280),
+            child: IndexedStack(index: _tab, children: pages),
+          ),
+        );
+        final mobileContent = RefreshIndicator.adaptive(
+          onRefresh: _loadData,
+          color: _forest,
+          backgroundColor: Colors.white,
+          displacement: 42,
+          edgeOffset: 8,
+          child: content,
+        );
+        return Scaffold(
+          body: SafeArea(
+            bottom: !wide,
+            child: wide
+                ? Row(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 0, 12),
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          onEnter: (_) => _setRailExtended(true),
+                          onExit: (_) => _setRailExtended(false),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 520),
+                            curve: Curves.easeOutQuart,
+                            width: _railExtended ? 228 : 82,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(26),
+                              border: Border.all(
+                                color: const Color(0xFFE8EEE6),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0x180F3D24),
+                                  blurRadius: _railExtended ? 32 : 22,
+                                  spreadRadius: _railExtended ? 1 : 0,
+                                  offset: Offset(_railExtended ? 7 : 4, 8),
+                                ),
+                              ],
+                            ),
+                            child: NavigationRail(
+                              selectedIndex: _tab,
+                              onDestinationSelected: (index) =>
+                                  setState(() => _tab = index),
+                              extended: _railExtended,
+                              labelType: NavigationRailLabelType.none,
+                              backgroundColor: Colors.transparent,
+                              groupAlignment: -0.72,
+                              minWidth: 72,
+                              minExtendedWidth: 218,
+                              useIndicator: true,
+                              indicatorColor: const Color(0xFFE5F1E5),
+                              indicatorShape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              selectedIconTheme: const IconThemeData(
+                                color: _forest,
+                              ),
+                              leading: Padding(
+                                padding: const EdgeInsets.only(
+                                  top: 8,
+                                  bottom: 14,
+                                ),
+                                child: const _BrandMark(),
+                              ),
+                              destinations: destinations
+                                  .map(
+                                    (item) => NavigationRailDestination(
+                                      icon: item.icon,
+                                      selectedIcon: item.selectedIcon,
+                                      label: Text(item.label),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const VerticalDivider(width: 1, thickness: 1),
+                      Expanded(child: content),
+                    ],
+                  )
+                : mobileContent,
+          ),
+          bottomNavigationBar: wide
+              ? null
+              : NavigationBar(
+                  selectedIndex: _tab,
+                  backgroundColor: Colors.white,
+                  indicatorColor: const Color(0xFFE5F1E5),
+                  onDestinationSelected: (index) =>
+                      setState(() => _tab = index),
+                  destinations: destinations,
+                ),
+        );
+      },
     );
   }
 }
@@ -624,22 +1248,32 @@ class _ExplorerShellState extends State<ExplorerShell> {
 class FeedPage extends StatefulWidget {
   const FeedPage({
     required this.spots,
+    required this.districts,
     required this.stories,
     required this.saved,
     required this.onSave,
+    required this.onLike,
+    required this.onShare,
     required this.onOpen,
     required this.onOpenStory,
+    required this.onAddStory,
+    required this.onOpenTips,
     required this.onExplore,
     required this.onNotifications,
     super.key,
   });
 
   final List<Spot> spots;
+  final List<Map<String, dynamic>> districts;
   final List<Story> stories;
   final Set<String> saved;
   final ValueChanged<Spot> onSave;
+  final ValueChanged<Spot> onLike;
+  final ValueChanged<Spot> onShare;
   final ValueChanged<Spot> onOpen;
   final ValueChanged<Story> onOpenStory;
+  final VoidCallback onAddStory;
+  final ValueChanged<Spot> onOpenTips;
   final VoidCallback onExplore;
   final VoidCallback onNotifications;
 
@@ -649,11 +1283,43 @@ class FeedPage extends StatefulWidget {
 
 class _FeedPageState extends State<FeedPage> {
   int _category = 0;
+  String _selectedCity = 'Payakumbuh';
 
   @override
   Widget build(BuildContext context) {
     final stories = widget.stories;
+    final horizontal = MediaQuery.sizeOf(context).width >= 700 ? 28.0 : 20.0;
+    final cityDistricts = <String, Set<int>>{};
+    for (final district in widget.districts) {
+      final city = asJsonMap(district['kabupaten_kota']);
+      final cityName = jsonString(city?['nama']);
+      final districtId = jsonInt(district['id']);
+      if (cityName.isNotEmpty && districtId != null) {
+        cityDistricts.putIfAbsent(cityName, () => <int>{}).add(districtId);
+      }
+    }
+    final cityOptions = [
+      'Semua wilayah',
+      ...cityDistricts.keys.map(_cityDisplayName).toSet().toList()..sort(),
+    ];
+    final activeCity = cityOptions.contains(_selectedCity)
+        ? _selectedCity
+        : cityOptions.first;
+    Set<int>? activeDistrictIds;
+    if (activeCity != 'Semua wilayah') {
+      for (final entry in cityDistricts.entries) {
+        if (_cityDisplayName(entry.key) == activeCity) {
+          activeDistrictIds = entry.value;
+          break;
+        }
+      }
+    }
     final feedSpots = widget.spots.where((spot) {
+      final matchesCity =
+          activeDistrictIds == null ||
+          (spot.districtId != null &&
+              activeDistrictIds.contains(spot.districtId));
+      if (!matchesCity) return false;
       if (_category == 2) {
         return spot.category.toLowerCase().contains('kuliner');
       }
@@ -667,7 +1333,7 @@ class _FeedPageState extends State<FeedPage> {
     return CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 8),
           sliver: SliverToBoxAdapter(
             child: Row(
               children: [
@@ -715,33 +1381,119 @@ class _FeedPageState extends State<FeedPage> {
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+          padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 0),
           sliver: SliverToBoxAdapter(
-            child: Row(
-              children: [
-                const Icon(Icons.explore, size: 16, color: _forest),
-                const SizedBox(width: 6),
-                const Text(
-                  'Menjelajah sekitar',
-                  style: TextStyle(color: _muted, fontSize: 12),
-                ),
-                const SizedBox(width: 5),
-                const Text(
-                  'Payakumbuh',
-                  style: TextStyle(
-                    color: _ink,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const Icon(Icons.keyboard_arrow_down, size: 17, color: _ink),
-                const Spacer(),
-                _tag('Sumatera Barat', const Color(0xFFE8F1E8), _forest),
-              ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Keep the region row compact on phones and narrow tablet
+                // previews so the status chip never pushes the dropdown out.
+                final compact = constraints.maxWidth < 760;
+                return Row(
+                  children: [
+                    const Icon(Icons.explore, size: 16, color: _forest),
+                    const SizedBox(width: 6),
+                    const Flexible(
+                      child: Text(
+                        'Menjelajah sekitar',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: _muted, fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Container(
+                        height: 34,
+                        padding: const EdgeInsets.only(left: 10, right: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE3EAE2)),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: activeCity,
+                            isDense: true,
+                            borderRadius: BorderRadius.circular(16),
+                            dropdownColor: Colors.white,
+                            elevation: 8,
+                            menuMaxHeight: 260,
+                            icon: const Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              size: 17,
+                              color: _forest,
+                            ),
+                            style: const TextStyle(
+                              color: _ink,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            items: cityOptions
+                                .map(
+                                  (city) => DropdownMenuItem<String>(
+                                    value: city,
+                                    child: Container(
+                                      width: 168,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 9,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: city == activeCity
+                                            ? const Color(0xFFE8F3E8)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              city,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          if (city == activeCity)
+                                            const Icon(
+                                              Icons.check_rounded,
+                                              size: 16,
+                                              color: _forest,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            selectedItemBuilder: (context) => cityOptions
+                                .map(
+                                  (city) => Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      city,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (city) {
+                              if (city != null)
+                                setState(() => _selectedCity = city);
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (!compact) ...[
+                      const SizedBox(width: 8),
+                      _tag('Sumatera Barat', const Color(0xFFE8F1E8), _forest),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
         ),
-        if (stories.isNotEmpty) ...[
+        ...[
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
             sliver: SliverToBoxAdapter(
@@ -752,6 +1504,11 @@ class _FeedPageState extends State<FeedPage> {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const Spacer(),
+                  IconButton(
+                    onPressed: widget.onAddStory,
+                    tooltip: 'Tambah cerita',
+                    icon: const Icon(Icons.add_circle_outline_rounded),
+                  ),
                   TextButton(
                     onPressed: widget.onExplore,
                     child: const Text('Lihat semua'),
@@ -764,22 +1521,28 @@ class _FeedPageState extends State<FeedPage> {
             child: SizedBox(
               height: 104,
               child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: EdgeInsets.symmetric(horizontal: horizontal),
                 scrollDirection: Axis.horizontal,
-                itemCount: stories.length,
+                itemCount: stories.length + 1,
                 separatorBuilder: (context, index) => const SizedBox(width: 15),
-                itemBuilder: (context, index) => _StoryBubble(
-                  title: stories[index].title,
-                  image: stories[index].image,
-                  isNew: index == 0,
-                  onTap: () => widget.onOpenStory(stories[index]),
-                ),
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return _AddStoryBubble(onTap: widget.onAddStory);
+                  }
+                  final story = stories[index - 1];
+                  return _StoryBubble(
+                    title: story.title,
+                    image: story.image,
+                    isNew: index == 1,
+                    onTap: () => widget.onOpenStory(story),
+                  );
+                },
               ),
             ),
           ),
         ],
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
+          padding: EdgeInsets.fromLTRB(horizontal, 14, horizontal, 12),
           sliver: SliverToBoxAdapter(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -809,11 +1572,22 @@ class _FeedPageState extends State<FeedPage> {
             delegate: SliverChildBuilderDelegate(
               (context, index) => Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: _FeedPost(
-                  spot: feedSpots[index],
-                  isSaved: widget.saved.contains(feedSpots[index].id),
-                  onSave: () => widget.onSave(feedSpots[index]),
-                  onOpen: () => widget.onOpen(feedSpots[index]),
+                child: _Reveal(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 760),
+                      child: _FeedPost(
+                        spot: feedSpots[index],
+                        isSaved: widget.saved.contains(feedSpots[index].id),
+                        onSave: () => widget.onSave(feedSpots[index]),
+                        onLike: () => widget.onLike(feedSpots[index]),
+                        onShare: () => widget.onShare(feedSpots[index]),
+                        onOpen: () => widget.onOpen(feedSpots[index]),
+                        onTips: () => widget.onOpenTips(feedSpots[index]),
+                      ),
+                    ),
+                  ),
                 ),
               ),
               childCount: feedSpots.length,
@@ -844,18 +1618,59 @@ class _FeedPageState extends State<FeedPage> {
   }
 }
 
+class _EngagementButton extends StatelessWidget {
+  const _EngagementButton({
+    required this.icon,
+    required this.count,
+    required this.onPressed,
+    this.color = _ink,
+  });
+
+  final IconData icon;
+  final int count;
+  final VoidCallback onPressed;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      IconButton(
+        visualDensity: VisualDensity.compact,
+        onPressed: onPressed,
+        icon: Icon(icon, size: 21, color: color),
+      ),
+      Text(
+        '$count',
+        style: const TextStyle(
+          color: _muted,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(width: 4),
+    ],
+  );
+}
+
 class _FeedPost extends StatelessWidget {
   const _FeedPost({
     required this.spot,
     required this.isSaved,
     required this.onSave,
+    required this.onLike,
+    required this.onShare,
     required this.onOpen,
+    required this.onTips,
   });
 
   final Spot spot;
   final bool isSaved;
   final VoidCallback onSave;
+  final VoidCallback onLike;
+  final VoidCallback onShare;
   final VoidCallback onOpen;
+  final VoidCallback onTips;
 
   @override
   Widget build(BuildContext context) {
@@ -899,9 +1714,56 @@ class _FeedPost extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 11, color: _muted),
             ),
-            trailing: IconButton(
-              onPressed: () => _showMessage(context, 'Opsi postingan'),
-              icon: const Icon(Icons.more_horiz),
+            trailing: PopupMenuButton<String>(
+              tooltip: 'Opsi spot',
+              icon: const Icon(Icons.more_horiz_rounded),
+              offset: const Offset(0, 42),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 8,
+              onSelected: (action) {
+                switch (action) {
+                  case 'detail':
+                    onOpen();
+                  case 'save':
+                    onSave();
+                  case 'share':
+                    onShare();
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem<String>(
+                  value: 'detail',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.open_in_new_rounded, size: 20),
+                    title: Text('Lihat detail spot'),
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'save',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      Icons.bookmark_rounded,
+                      size: 20,
+                      color: isSaved ? _forest : null,
+                    ),
+                    title: Text(
+                      isSaved ? 'Hapus dari tersimpan' : 'Simpan spot',
+                    ),
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'share',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.share_rounded, size: 20),
+                    title: Text('Bagikan spot'),
+                  ),
+                ),
+              ],
             ),
           ),
           GestureDetector(
@@ -918,15 +1780,23 @@ class _FeedPost extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      onPressed: onOpen,
-                      icon: const Icon(Icons.mode_comment_outlined, size: 21),
+                    _EngagementButton(
+                      icon: spot.likedByMe
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      color: spot.likedByMe ? const Color(0xFFE05252) : _ink,
+                      count: spot.likeCount,
+                      onPressed: onLike,
                     ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => _showMessage(context, 'Siap dibagikan'),
-                      icon: const Icon(Icons.send_outlined, size: 21),
+                    _EngagementButton(
+                      icon: Icons.mode_comment_outlined,
+                      count: spot.tipCount,
+                      onPressed: onTips,
+                    ),
+                    _EngagementButton(
+                      icon: Icons.send_outlined,
+                      count: spot.shareCount,
+                      onPressed: onShare,
                     ),
                     const Spacer(),
                     IconButton(
@@ -947,29 +1817,32 @@ class _FeedPost extends StatelessWidget {
                   style: const TextStyle(fontSize: 13, height: 1.45),
                 ),
                 const SizedBox(height: 9),
-                Row(
-                  children: [
-                    Icon(
-                      isFood ? Icons.lightbulb_outline : Icons.location_on,
-                      size: 14,
-                      color: isFood ? _clay : _forest,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        isFood ? 'Tips Warga Lokal' : spot.area,
-                        style: TextStyle(
-                          color: isFood ? _clay : _muted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                GestureDetector(
+                  onTap: isFood ? onTips : null,
+                  child: Row(
+                    children: [
+                      Icon(
+                        isFood ? Icons.lightbulb_outline : Icons.location_on,
+                        size: 14,
+                        color: isFood ? _clay : _forest,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          isFood ? 'Tips Warga Lokal · Tulis tips' : spot.area,
+                          style: TextStyle(
+                            color: isFood ? _clay : _muted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                    ),
-                    Text(
-                      _timeAgo(spot.createdAt),
-                      style: const TextStyle(color: _muted, fontSize: 10),
-                    ),
-                  ],
+                      Text(
+                        _timeAgo(spot.createdAt),
+                        style: const TextStyle(color: _muted, fontSize: 10),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1034,138 +1907,166 @@ class _ExplorePageState extends State<ExplorePage> {
       return matchesCategory && matchesQuery;
     }).toList();
 
-    return CustomScrollView(
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 15),
-          sliver: SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Temukan pesona', style: TextStyle(color: _muted)),
-                Text(
-                  'Luak Limopuluah',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  onChanged: (value) => setState(() => _query = value),
-                  decoration: InputDecoration(
-                    hintText: 'Cari tempat, kecamatan, atau kuliner',
-                    prefixIcon: const Icon(Icons.search, color: _forest),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(color: Color(0xFFE7EAE5)),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontal = constraints.maxWidth >= 700 ? 28.0 : 20.0;
+        final columns = constraints.maxWidth >= 1080
+            ? 4
+            : constraints.maxWidth >= 760
+            ? 3
+            : 2;
+        return CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(horizontal, 22, horizontal, 15),
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Temukan pesona',
+                      style: TextStyle(color: _muted),
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(color: Color(0xFFE7EAE5)),
+                    Text(
+                      'Luak Limopuluah',
+                      style: Theme.of(context).textTheme.headlineSmall,
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      onChanged: (value) => setState(() => _query = value),
+                      decoration: InputDecoration(
+                        hintText: 'Cari tempat, kecamatan, atau kuliner',
+                        prefixIcon: const Icon(Icons.search, color: _forest),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE7EAE5),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE7EAE5),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: _suggestSpot,
+                        icon: const Icon(Icons.add_location_alt_outlined),
+                        label: const Text('Usulkan Spot'),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: _suggestSpot,
-                    icon: const Icon(Icons.add_location_alt_outlined),
-                    label: const Text('Usulkan Spot'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 43,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              scrollDirection: Axis.horizontal,
-              itemCount: categories.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final category = categories[index];
-                final selected = _category == category;
-                return ChoiceChip(
-                  label: Text(category),
-                  selected: selected,
-                  onSelected: (_) => setState(() => _category = category),
-                  showCheckmark: false,
-                  backgroundColor: Colors.white,
-                  selectedColor: _forest,
-                  side: BorderSide(
-                    color: selected ? _forest : const Color(0xFFE5E8E3),
-                  ),
-                  labelStyle: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: selected ? Colors.white : _ink,
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        if (widget.spots.isNotEmpty)
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 15),
-            sliver: SliverToBoxAdapter(
-              child: _CuratedBanner(
-                image: widget.spots.first.image,
-                onTap: () => widget.onOpen(widget.spots.first),
               ),
             ),
-          ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          sliver: SliverToBoxAdapter(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Spot pilihan',
-                    style: Theme.of(context).textTheme.titleLarge,
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 43,
+                child: ListView.separated(
+                  padding: EdgeInsets.symmetric(horizontal: horizontal),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: categories.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final category = categories[index];
+                    final selected = _category == category;
+                    return ChoiceChip(
+                      label: Text(category),
+                      selected: selected,
+                      onSelected: (_) => setState(() => _category = category),
+                      showCheckmark: false,
+                      backgroundColor: Colors.white,
+                      selectedColor: _forest,
+                      side: BorderSide(
+                        color: selected ? _forest : const Color(0xFFE5E8E3),
+                      ),
+                      labelStyle: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: selected ? Colors.white : _ink,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            if (widget.spots.isNotEmpty)
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(horizontal, 20, horizontal, 15),
+                sliver: SliverToBoxAdapter(
+                  child: _CuratedBanner(
+                    image: widget.spots.first.image,
+                    onTap: () => widget.onOpen(widget.spots.first),
                   ),
                 ),
-                Text(
-                  '${filtered.length} tempat',
-                  style: const TextStyle(color: _muted, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (filtered.isEmpty)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(child: Text('Belum ada tempat yang cocok.')),
-          )
-        else
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.72,
               ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => _SpotCard(
-                  spot: filtered[index],
-                  isSaved: widget.saved.contains(filtered[index].id),
-                  onSave: () => widget.onSave(filtered[index]),
-                  onTap: () => widget.onOpen(filtered[index]),
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 12),
+              sliver: SliverToBoxAdapter(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Spot pilihan',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    Text(
+                      '${filtered.length} tempat',
+                      style: const TextStyle(color: _muted, fontSize: 12),
+                    ),
+                  ],
                 ),
-                childCount: filtered.length,
               ),
             ),
-          ),
-      ],
+            if (filtered.isEmpty)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: Text('Belum ada tempat yang cocok.')),
+              )
+            else
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  horizontal - 4,
+                  0,
+                  horizontal - 4,
+                  20,
+                ),
+                sliver: SliverGrid(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: columns >= 3 ? 0.82 : 0.72,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) => _Reveal(
+                      delay: Duration(milliseconds: index.clamp(0, 5) * 45),
+                      child: _SpotCard(
+                        spot: filtered[index],
+                        isSaved: widget.saved.contains(filtered[index].id),
+                        onSave: () => widget.onSave(filtered[index]),
+                        onTap: () => widget.onOpen(filtered[index]),
+                      ),
+                    ),
+                    childCount: filtered.length,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -1180,17 +2081,40 @@ class _ExplorePageState extends State<ExplorePage> {
     final summary = TextEditingController();
     final latitude = TextEditingController();
     final longitude = TextEditingController();
+    final googleMapsLink = TextEditingController();
     Uint8List? imageBytes;
     String? imageName;
+    var showManualCoordinates = false;
     var categoryId = (widget.categories.first['id'] as num).toInt();
     var districtId = (widget.districts.first['id'] as num).toInt();
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Usulkan spot wisata'),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 4),
+          contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          title: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Usulkan spot wisata'),
+              SizedBox(height: 5),
+              Text(
+                'Bantu tambahkan tempat menarik di sekitar kamu.',
+                style: TextStyle(
+                  color: _muted,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
           content: SizedBox(
-            width: 420,
+            width: 460,
             child: Form(
               key: formKey,
               child: SingleChildScrollView(
@@ -1216,10 +2140,14 @@ class _ExplorePageState extends State<ExplorePage> {
                           ? 'Ringkasan wajib diisi'
                           : null,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
                     Align(
                       alignment: Alignment.centerLeft,
                       child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 46),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                        ),
                         onPressed: () async {
                           final result = await FilePicker.pickFiles(
                             type: FileType.image,
@@ -1233,13 +2161,29 @@ class _ExplorePageState extends State<ExplorePage> {
                             });
                           }
                         },
-                        icon: const Icon(Icons.image_outlined),
+                        icon: const Icon(Icons.add_photo_alternate_outlined),
                         label: Text(imageName ?? 'Pilih gambar spot'),
                       ),
                     ),
+                    if (imageBytes != null) ...[
+                      const SizedBox(height: 10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Image.memory(
+                          imageBytes!,
+                          width: double.infinity,
+                          height: 118,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
                     DropdownButtonFormField<int>(
                       initialValue: categoryId,
-                      decoration: const InputDecoration(labelText: 'Kategori'),
+                      decoration: const InputDecoration(
+                        labelText: 'Kategori spot',
+                        prefixIcon: Icon(Icons.category_outlined),
+                      ),
                       items: widget.categories
                           .map(
                             (row) => DropdownMenuItem(
@@ -1254,9 +2198,13 @@ class _ExplorePageState extends State<ExplorePage> {
                         }
                       },
                     ),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<int>(
                       initialValue: districtId,
-                      decoration: const InputDecoration(labelText: 'Kecamatan'),
+                      decoration: const InputDecoration(
+                        labelText: 'Kecamatan',
+                        prefixIcon: Icon(Icons.location_city_outlined),
+                      ),
                       items: widget.districts
                           .map(
                             (row) => DropdownMenuItem(
@@ -1271,43 +2219,128 @@ class _ExplorePageState extends State<ExplorePage> {
                         }
                       },
                     ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: latitude,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                              signed: true,
-                            ),
-                            decoration: const InputDecoration(
-                              labelText: 'Latitude (opsional)',
-                            ),
-                            validator: (value) =>
-                                _coordinateValidator(value, -90, 90),
-                          ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextFormField(
-                            controller: longitude,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                              signed: true,
+                        onPressed: () async {
+                          final query = name.text.trim().isEmpty
+                              ? 'tempat wisata Payakumbuh Lima Puluh Kota'
+                              : name.text.trim();
+                          final uri = Uri.https(
+                            'www.google.com',
+                            '/maps/search/',
+                            {'api': '1', 'query': '$query, Sumatera Barat'},
+                          );
+                          await launchUrl(
+                            uri,
+                            mode: LaunchMode.externalApplication,
+                          );
+                        },
+                        icon: const Icon(Icons.map_outlined),
+                        label: const Text('Cari tempat di Google Maps'),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    TextFormField(
+                      controller: googleMapsLink,
+                      decoration: const InputDecoration(
+                        labelText: 'Tautan Google Maps',
+                        hintText: 'Tempel tautan lokasi dari Google Maps',
+                        prefixIcon: Icon(Icons.link_rounded),
+                      ),
+                      onChanged: (value) {
+                        final coordinates = _coordinatesFromMapsLink(value);
+                        if (coordinates != null) {
+                          latitude.text = coordinates.latitude.toString();
+                          longitude.text = coordinates.longitude.toString();
+                          setDialogState(() {});
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    if (_coordinatesFromMapsLink(googleMapsLink.text) != null)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 9,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _forest.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle_outline,
+                              size: 16,
+                              color: _forest,
                             ),
-                            decoration: const InputDecoration(
-                              labelText: 'Longitude (opsional)',
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Lokasi berhasil diambil dari tautan Google Maps.',
+                                style: TextStyle(color: _forest, fontSize: 12),
+                              ),
                             ),
-                            validator: (value) =>
-                                _coordinateValidator(value, -180, 180),
-                          ),
+                          ],
+                        ),
+                      ),
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      childrenPadding: const EdgeInsets.only(bottom: 4),
+                      shape: const Border(),
+                      collapsedShape: const Border(),
+                      initiallyExpanded: showManualCoordinates,
+                      onExpansionChanged: (expanded) => setDialogState(
+                        () => showManualCoordinates = expanded,
+                      ),
+                      title: const Text(
+                        'Lokasi belum tersedia di Google Maps?',
+                      ),
+                      subtitle: const Text('Masukkan koordinat secara manual'),
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: latitude,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                      signed: true,
+                                    ),
+                                decoration: const InputDecoration(
+                                  labelText: 'Latitude',
+                                ),
+                                validator: (value) =>
+                                    _coordinateValidator(value, -90, 90),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextFormField(
+                                controller: longitude,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                      signed: true,
+                                    ),
+                                decoration: const InputDecoration(
+                                  labelText: 'Longitude',
+                                ),
+                                validator: (value) =>
+                                    _coordinateValidator(value, -180, 180),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Koordinat bisa disalin dari Google Maps. Contoh: latitude -0.2317, longitude 100.6278.',
-                      style: TextStyle(color: _muted, fontSize: 11),
                     ),
                   ],
                 ),
@@ -1320,6 +2353,10 @@ class _ExplorePageState extends State<ExplorePage> {
               child: const Text('Batal'),
             ),
             FilledButton(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 46),
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+              ),
               onPressed: () {
                 if (formKey.currentState!.validate()) {
                   if (latitude.text.trim().isEmpty !=
@@ -1341,6 +2378,25 @@ class _ExplorePageState extends State<ExplorePage> {
     );
 
     if (result == true) {
+      if (googleMapsLink.text.trim().isNotEmpty &&
+          _coordinatesFromMapsLink(googleMapsLink.text) == null) {
+        final coordinates = await _resolveMapsLink(googleMapsLink.text);
+        if (coordinates != null) {
+          latitude.text = coordinates.latitude.toString();
+          longitude.text = coordinates.longitude.toString();
+        } else if (mounted) {
+          _showMessage(
+            context,
+            'Link Google Maps belum bisa dibaca. Gunakan link lengkap atau isi koordinat manual.',
+          );
+          name.dispose();
+          summary.dispose();
+          latitude.dispose();
+          longitude.dispose();
+          googleMapsLink.dispose();
+          return;
+        }
+      }
       final spotName = name.text.trim();
       final slugBase = spotName
           .toLowerCase()
@@ -1370,6 +2426,7 @@ class _ExplorePageState extends State<ExplorePage> {
     summary.dispose();
     latitude.dispose();
     longitude.dispose();
+    googleMapsLink.dispose();
   }
 
   String? _coordinateValidator(String? value, double minimum, double maximum) {
@@ -1704,93 +2761,171 @@ class NearbyPage extends StatelessWidget {
   }
 }
 
-class _InteractiveSpotMap extends StatelessWidget {
+class _InteractiveSpotMap extends StatefulWidget {
   const _InteractiveSpotMap({required this.spots, required this.onOpen});
 
   final List<Spot> spots;
   final ValueChanged<Spot> onOpen;
 
+  @override
+  State<_InteractiveSpotMap> createState() => _InteractiveSpotMapState();
+}
+
+class _InteractiveSpotMapState extends State<_InteractiveSpotMap> {
+  final _mapController = MapController();
+
   static const _defaultCenter = LatLng(-0.2299, 100.6320);
 
   @override
   Widget build(BuildContext context) {
-    final mappedSpots = spots
+    final mappedSpots = widget.spots
         .where((spot) => spot.latitude != null && spot.longitude != null)
         .toList();
     final center = mappedSpots.isNotEmpty
-        ? LatLng(mappedSpots.first.latitude!, mappedSpots.first.longitude!)
+        ? LatLng(
+            mappedSpots.map((spot) => spot.latitude!).reduce((a, b) => a + b) /
+                mappedSpots.length,
+            mappedSpots.map((spot) => spot.longitude!).reduce((a, b) => a + b) /
+                mappedSpots.length,
+          )
         : _defaultCenter;
 
-    return FlutterMap(
-      options: MapOptions(
-        initialCenter: center,
-        initialZoom: mappedSpots.isNotEmpty ? 11.5 : 10.5,
-        interactionOptions: const InteractionOptions(
-          flags: InteractiveFlag.all,
-        ),
-      ),
+    final zoom = mappedSpots.length > 2 ? 10.8 : 12.2;
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        TileLayer(
-          urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-          userAgentPackageName: 'com.luakexplorer.wisata_paliko',
-        ),
-        TileLayer(
-          // Label transparan untuk nama daerah, jalan, dan batas wilayah.
-          urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-          userAgentPackageName: 'com.luakexplorer.wisata_paliko',
-        ),
-        MarkerLayer(
-          markers: mappedSpots
-              .map(
-                (spot) => Marker(
-                  point: LatLng(spot.latitude!, spot.longitude!),
-                  width: 150,
-                  height: 66,
-                  child: GestureDetector(
-                    onTap: () => onOpen(spot),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x25000000),
-                                blurRadius: 5,
-                                offset: Offset(0, 2),
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: center,
+            initialZoom: zoom,
+            interactionOptions: const InteractionOptions(
+              flags: InteractiveFlag.all,
+            ),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              maxZoom: 19,
+              userAgentPackageName: 'com.luakexplorer.wisata_paliko',
+            ),
+            MarkerLayer(
+              markers: mappedSpots
+                  .map(
+                    (spot) => Marker(
+                      point: LatLng(spot.latitude!, spot.longitude!),
+                      width: 170,
+                      height: 76,
+                      child: GestureDetector(
+                        onTap: () => widget.onOpen(spot),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 11,
+                                vertical: 7,
                               ),
-                            ],
-                          ),
-                          child: Text(
-                            spot.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: _ink,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(13),
+                                border: Border.all(
+                                  color: const Color(0xFFE5ECE3),
+                                ),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x26000000),
+                                    blurRadius: 9,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.place_rounded,
+                                    color: _forest,
+                                    size: 15,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 120,
+                                    ),
+                                    child: Text(
+                                      spot.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: _ink,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
+                            const Icon(
+                              Icons.location_on_rounded,
+                              color: _forest,
+                              size: 30,
+                            ),
+                          ],
                         ),
-                        const Icon(Icons.location_on, color: _forest, size: 30),
-                      ],
+                      ),
                     ),
+                  )
+                  .toList(),
+            ),
+            const RichAttributionWidget(
+              alignment: AttributionAlignment.bottomRight,
+              attributions: [
+                TextSourceAttribution('© OpenStreetMap contributors'),
+              ],
+            ),
+          ],
+        ),
+        Positioned(
+          top: 13,
+          right: 13,
+          child: Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            elevation: 5,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Perbesar peta',
+                  onPressed: () => _mapController.move(
+                    _mapController.camera.center,
+                    _mapController.camera.zoom + 1,
+                  ),
+                  icon: const Icon(Icons.add_rounded, color: _forest),
+                ),
+                const Divider(height: 1, indent: 10, endIndent: 10),
+                IconButton(
+                  tooltip: 'Perkecil peta',
+                  onPressed: () => _mapController.move(
+                    _mapController.camera.center,
+                    _mapController.camera.zoom - 1,
+                  ),
+                  icon: const Icon(Icons.remove_rounded, color: _forest),
+                ),
+                const Divider(height: 1, indent: 10, endIndent: 10),
+                IconButton(
+                  tooltip: 'Tampilkan semua spot',
+                  onPressed: () => _mapController.move(center, zoom),
+                  icon: const Icon(
+                    Icons.center_focus_strong_rounded,
+                    color: _forest,
                   ),
                 ),
-              )
-              .toList(),
-        ),
-        const RichAttributionWidget(
-          alignment: AttributionAlignment.bottomRight,
-          attributions: [
-            TextSourceAttribution('Esri, Maxar, Earthstar Geographics'),
-          ],
+              ],
+            ),
+          ),
         ),
         if (mappedSpots.isEmpty)
           const Center(
@@ -1985,12 +3120,11 @@ class _SavedPageState extends State<SavedPage> {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
-                if (widget.role != AppRole.penjelajah)
-                  TextButton.icon(
-                    onPressed: _createCollection,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Buat'),
-                  ),
+                TextButton.icon(
+                  onPressed: _createCollection,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Buat'),
+                ),
               ],
             ),
           ),
@@ -2012,10 +3146,8 @@ class _SavedPageState extends State<SavedPage> {
                   _viewChip('Spot disimpan', 0),
                   const SizedBox(width: 8),
                   _viewChip('Koleksi publik', 1),
-                  if (widget.role != AppRole.penjelajah) ...[
-                    const SizedBox(width: 8),
-                    _viewChip('Koleksi saya', 2),
-                  ],
+                  const SizedBox(width: 8),
+                  _viewChip('Koleksi saya', 2),
                 ],
               ),
             ),
@@ -2437,96 +3569,231 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
     final longitude = TextEditingController(
       text: widget.spot.longitude?.toString(),
     );
+    final googleMapsLink = TextEditingController();
     var districtId =
         widget.spot.districtId ??
         (districts.isEmpty ? null : (districts.first['id'] as num).toInt());
     Uint8List? imageBytes;
     String? imageName;
+    var showManualCoordinates = false;
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Edit spot'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: name,
-                  decoration: const InputDecoration(labelText: 'Nama spot'),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 4),
+          contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          title: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Edit spot'),
+              SizedBox(height: 5),
+              Text(
+                'Perbarui informasi agar spot tetap akurat.',
+                style: TextStyle(
+                  color: _muted,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
                 ),
-                TextField(
-                  controller: summary,
-                  maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'Ringkasan'),
-                ),
-                if (districts.isNotEmpty)
-                  DropdownButtonFormField<int>(
-                    initialValue: districtId,
-                    decoration: const InputDecoration(labelText: 'Kecamatan'),
-                    items: districts
-                        .map(
-                          (district) => DropdownMenuItem(
-                            value: (district['id'] as num).toInt(),
-                            child: Text(jsonString(district['nama'])),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) =>
-                        setDialogState(() => districtId = value),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 460,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: name,
+                    decoration: const InputDecoration(
+                      labelText: 'Nama spot',
+                      prefixIcon: Icon(Icons.place_outlined),
+                    ),
                   ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: latitude,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                          signed: true,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: 'Latitude',
-                        ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: summary,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Ringkasan',
+                      prefixIcon: Icon(Icons.notes_outlined),
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (districts.isNotEmpty)
+                    DropdownButtonFormField<int>(
+                      initialValue: districtId,
+                      decoration: const InputDecoration(
+                        labelText: 'Kecamatan',
+                        prefixIcon: Icon(Icons.location_city_outlined),
+                      ),
+                      items: districts
+                          .map(
+                            (district) => DropdownMenuItem(
+                              value: (district['id'] as num).toInt(),
+                              child: Text(jsonString(district['nama'])),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) =>
+                          setDialogState(() => districtId = value),
+                    ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                      ),
+                      onPressed: () async {
+                        final query = name.text.trim().isEmpty
+                            ? widget.spot.name
+                            : name.text.trim();
+                        final uri = Uri.https(
+                          'www.google.com',
+                          '/maps/search/',
+                          {'api': '1', 'query': '$query, Sumatera Barat'},
+                        );
+                        await launchUrl(
+                          uri,
+                          mode: LaunchMode.externalApplication,
+                        );
+                      },
+                      icon: const Icon(Icons.map_outlined),
+                      label: const Text('Cari lokasi di Google Maps'),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: googleMapsLink,
+                    decoration: const InputDecoration(
+                      labelText: 'Tautan Google Maps',
+                      hintText: 'Tempel tautan lokasi dari Google Maps',
+                      prefixIcon: Icon(Icons.link_rounded),
+                    ),
+                    onChanged: (value) {
+                      final coordinates = _coordinatesFromMapsLink(value);
+                      if (coordinates != null) {
+                        latitude.text = coordinates.latitude.toString();
+                        longitude.text = coordinates.longitude.toString();
+                        setDialogState(() {});
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  if (_coordinatesFromMapsLink(googleMapsLink.text) != null)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _forest.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle_outline,
+                            size: 16,
+                            color: _forest,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Lokasi berhasil diambil dari Google Maps.',
+                              style: TextStyle(color: _forest, fontSize: 12),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: longitude,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                          signed: true,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: 'Longitude',
-                        ),
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: const EdgeInsets.only(bottom: 4),
+                    shape: const Border(),
+                    collapsedShape: const Border(),
+                    initiallyExpanded: showManualCoordinates,
+                    onExpansionChanged: (expanded) =>
+                        setDialogState(() => showManualCoordinates = expanded),
+                    title: const Text('Belum ada di Google Maps?'),
+                    subtitle: const Text('Isi lokasi secara manual'),
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: latitude,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                    signed: true,
+                                  ),
+                              decoration: const InputDecoration(
+                                labelText: 'Latitude',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: longitude,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                    signed: true,
+                                  ),
+                              decoration: const InputDecoration(
+                                labelText: 'Longitude',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 46),
+                    ),
+                    onPressed: () async {
+                      final picked = await FilePicker.pickFiles(
+                        type: FileType.image,
+                      );
+                      final file = picked.isEmpty ? null : picked.first;
+                      if (file != null) {
+                        final bytes = await file.readAsBytes();
+                        setDialogState(() {
+                          imageBytes = bytes;
+                          imageName = file.name;
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.image_outlined),
+                    label: Text(imageName ?? 'Ganti gambar'),
+                  ),
+                  if (imageBytes != null) ...[
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.memory(
+                        imageBytes!,
+                        width: double.infinity,
+                        height: 110,
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ],
-                ),
-                const Text(
-                  'Kosongkan keduanya jika lokasi belum tersedia.',
-                  style: TextStyle(color: _muted, fontSize: 11),
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final picked = await FilePicker.pickFiles(
-                      type: FileType.image,
-                    );
-                    final file = picked.isEmpty ? null : picked.first;
-                    if (file != null) {
-                      final bytes = await file.readAsBytes();
-                      setDialogState(() {
-                        imageBytes = bytes;
-                        imageName = file.name;
-                      });
-                    }
-                  },
-                  icon: const Icon(Icons.image_outlined),
-                  label: Text(imageName ?? 'Ganti gambar'),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           actions: [
@@ -2535,6 +3802,10 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
               child: const Text('Batal'),
             ),
             FilledButton(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 46),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+              ),
               onPressed: () => Navigator.pop(context, true),
               child: const Text('Simpan'),
             ),
@@ -2542,6 +3813,20 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
         ),
       ),
     );
+    if (result == true &&
+        googleMapsLink.text.trim().isNotEmpty &&
+        _coordinatesFromMapsLink(googleMapsLink.text) == null) {
+      final coordinates = await _resolveMapsLink(googleMapsLink.text);
+      if (coordinates != null) {
+        latitude.text = coordinates.latitude.toString();
+        longitude.text = coordinates.longitude.toString();
+      } else if (mounted) {
+        _showMessage(
+          context,
+          'Link Google Maps belum bisa dibaca. Gunakan link lengkap atau isi koordinat manual.',
+        );
+      }
+    }
     final latitudeValue = double.tryParse(latitude.text.trim());
     final longitudeValue = double.tryParse(longitude.text.trim());
     final coordinatesValid =
@@ -2593,63 +3878,76 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
     summary.dispose();
     latitude.dispose();
     longitude.dispose();
+    googleMapsLink.dispose();
   }
 
   Future<void> _createStory() async {
     final title = TextEditingController();
     Uint8List? imageBytes;
     String? imageName;
-    var expiresAt = DateTime.now().add(const Duration(days: 7));
+    final expiresAt = DateTime.now().add(const Duration(hours: 24));
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 4),
+          contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
           title: const Text('Buat cerita'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: title,
-                maxLength: 80,
-                decoration: const InputDecoration(labelText: 'Judul cerita'),
-              ),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  final files = await FilePicker.pickFiles(
-                    type: FileType.image,
-                  );
-                  final file = files.isEmpty ? null : files.first;
-                  if (file != null) {
-                    final bytes = await file.readAsBytes();
-                    setDialogState(() {
-                      imageBytes = bytes;
-                      imageName = file.name;
-                    });
-                  }
-                },
-                icon: const Icon(Icons.image_outlined),
-                label: Text(imageName ?? 'Pilih gambar cerita'),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tayang sampai ${expiresAt.toLocal().toString().split(' ').first}',
-              ),
-              TextButton(
-                onPressed: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime.now().add(const Duration(days: 365)),
-                    initialDate: expiresAt,
-                  );
-                  if (picked != null)
-                    setDialogState(
-                      () => expiresAt = picked.add(const Duration(days: 1)),
+          content: SizedBox(
+            width: 430,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: title,
+                  maxLength: 80,
+                  decoration: const InputDecoration(
+                    labelText: 'Judul cerita',
+                    prefixIcon: Icon(Icons.edit_note_outlined),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 46),
+                  ),
+                  onPressed: () async {
+                    final files = await FilePicker.pickFiles(
+                      type: FileType.image,
                     );
-                },
-                child: const Text('Ubah tanggal kedaluwarsa'),
-              ),
-            ],
+                    final file = files.isEmpty ? null : files.first;
+                    if (file != null) {
+                      final bytes = await file.readAsBytes();
+                      setDialogState(() {
+                        imageBytes = bytes;
+                        imageName = file.name;
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.image_outlined),
+                  label: Text(imageName ?? 'Pilih gambar cerita'),
+                ),
+                if (imageBytes != null) ...[
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.memory(
+                      imageBytes!,
+                      width: double.infinity,
+                      height: 140,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                const Text('Cerita akan tampil selama 24 jam.'),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -2657,7 +3955,13 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
               child: const Text('Batal'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 46),
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+              ),
+              onPressed: imageBytes == null
+                  ? null
+                  : () => Navigator.pop(context, true),
               child: const Text('Posting cerita'),
             ),
           ],
@@ -2720,7 +4024,11 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
               ),
               IconButton(
                 tooltip: 'Bagikan',
-                onPressed: () => _showMessage(context, 'Siap dibagikan'),
+                onPressed: () => _shareSpot(
+                  context,
+                  widget.spot,
+                  repository: widget.repository,
+                ),
                 icon: const Icon(Icons.share_outlined),
               ),
               IconButton(
@@ -3506,6 +4814,95 @@ class CollectionDetailPage extends StatelessWidget {
   }
 }
 
+class _Reveal extends StatefulWidget {
+  const _Reveal({required this.child, this.delay = Duration.zero});
+
+  final Widget child;
+  final Duration delay;
+
+  @override
+  State<_Reveal> createState() => _RevealState();
+}
+
+class _RevealState extends State<_Reveal> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _offset;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
+    _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _offset = Tween<Offset>(
+      begin: const Offset(0, 0.035),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    if (widget.delay == Duration.zero) {
+      _controller.forward();
+    } else {
+      _timer = Timer(widget.delay, () {
+        if (mounted) _controller.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+    opacity: _opacity,
+    child: SlideTransition(position: _offset, child: widget.child),
+  );
+}
+
+class _AddStoryBubble extends StatelessWidget {
+  const _AddStoryBubble({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: SizedBox(
+      width: 68,
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F1E8),
+              shape: BoxShape.circle,
+              border: Border.all(color: _forest, width: 2),
+            ),
+            child: const Icon(Icons.add_rounded, color: _forest, size: 30),
+          ),
+          const SizedBox(height: 5),
+          const Text(
+            'Tambah',
+            maxLines: 1,
+            style: TextStyle(
+              color: _ink,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _StoryBubble extends StatelessWidget {
   const _StoryBubble({
     required this.title,
@@ -3540,9 +4937,7 @@ class _StoryBubble extends StatelessWidget {
                 radius: 27,
                 backgroundColor: const Color(0xFFE8F1E8),
                 backgroundImage: image.isEmpty ? null : NetworkImage(image),
-                child: image.isEmpty
-                    ? const Icon(Icons.landscape, color: _forest)
-                    : null,
+                child: image.isEmpty ? const _LogoImage(size: 54) : null,
               ),
             ),
             const SizedBox(height: 5),
@@ -3575,9 +4970,29 @@ class _BrandMark extends StatelessWidget {
         color: const Color(0xFFE8F1E8),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: const Icon(Icons.landscape_rounded, color: _forest, size: 25),
+      child: const _LogoImage(size: 42),
     );
   }
+}
+
+class _LogoImage extends StatelessWidget {
+  const _LogoImage({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(size * 0.28),
+    child: SizedBox(
+      width: size,
+      height: size,
+      child: Image.asset(
+        'assets/luak_explorer_icon.png',
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
+      ),
+    ),
+  );
 }
 
 class _NetworkPhoto extends StatelessWidget {
@@ -3590,7 +5005,7 @@ class _NetworkPhoto extends StatelessWidget {
     if (image.isEmpty) {
       return const ColoredBox(
         color: Color(0xFFDCE8D8),
-        child: Center(child: Icon(Icons.landscape, color: _forest, size: 42)),
+        child: const Center(child: _LogoImage(size: 42)),
       );
     }
     return Image.network(
@@ -3599,7 +5014,7 @@ class _NetworkPhoto extends StatelessWidget {
       errorBuilder: (context, error, stackTrace) => Container(
         color: const Color(0xFFDCE8D8),
         alignment: Alignment.center,
-        child: const Icon(Icons.landscape, color: _forest, size: 42),
+        child: const _LogoImage(size: 42),
       ),
       loadingBuilder: (context, child, progress) {
         if (progress == null) return child;
@@ -3643,6 +5058,213 @@ String _timeAgo(DateTime dateTime) {
   if (difference.inHours < 24) return '${difference.inHours} jam lalu';
   if (difference.inDays < 30) return '${difference.inDays} hari lalu';
   return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+}
+
+String _cityDisplayName(String name) {
+  return name.replaceFirst(RegExp(r'^(Kota|Kabupaten)\s+'), '');
+}
+
+Future<void> _showTipsSheet(
+  BuildContext context,
+  ExplorerRepository repository,
+  Spot spot, {
+  Future<void> Function()? onSubmitted,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _TipsSheet(
+      repository: repository,
+      spot: spot,
+      onSubmitted: onSubmitted,
+    ),
+  );
+}
+
+class _TipsSheet extends StatefulWidget {
+  const _TipsSheet({
+    required this.repository,
+    required this.spot,
+    this.onSubmitted,
+  });
+
+  final ExplorerRepository repository;
+  final Spot spot;
+  final Future<void> Function()? onSubmitted;
+
+  @override
+  State<_TipsSheet> createState() => _TipsSheetState();
+}
+
+class _TipsSheetState extends State<_TipsSheet> {
+  late Future<List<ExplorerTip>> _tips;
+  final _controller = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tips = widget.repository.getTips(widget.spot.id);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final content = _controller.text.trim();
+    if (content.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await widget.repository.addTip(
+        spotId: widget.spot.id,
+        content: content,
+        rating: 5,
+      );
+      _controller.clear();
+      setState(() {
+        _sending = false;
+        _tips = widget.repository.getTips(widget.spot.id);
+      });
+      await widget.onSubmitted?.call();
+    } on Exception catch (error) {
+      if (mounted) {
+        setState(() => _sending = false);
+        _showMessage(context, 'Komentar gagal dikirim: $error');
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 220),
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.62,
+        minChildSize: 0.42,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: _paper,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+          child: Column(
+            children: [
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD3DCCF),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  const Icon(Icons.chat_bubble_outline, color: _forest),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Komentar & tips',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  Text(
+                    widget.spot.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: _muted, fontSize: 11),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: FutureBuilder<List<ExplorerTip>>(
+                  future: _tips,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final tips = snapshot.data ?? [];
+                    if (tips.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          'Belum ada komentar.\nJadilah yang pertama berbagi tips.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: _muted),
+                        ),
+                      );
+                    }
+                    return ListView.separated(
+                      controller: scrollController,
+                      itemCount: tips.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 9),
+                      itemBuilder: (context, index) => _ReviewCard(
+                        tip: tips[index],
+                        onHelpful: () async {
+                          await widget.repository.toggleTipVote(tips[index].id);
+                          if (mounted) {
+                            setState(() {
+                              _tips = widget.repository.getTips(widget.spot.id);
+                            });
+                          }
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      minLines: 1,
+                      maxLines: 3,
+                      textInputAction: TextInputAction.newline,
+                      decoration: InputDecoration(
+                        hintText: 'Tulis komentar atau tips...',
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    onPressed: _sending ? null : _send,
+                    style: IconButton.styleFrom(backgroundColor: _forest),
+                    icon: _sending
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.send_rounded),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 void _showMessage(BuildContext context, String message) {

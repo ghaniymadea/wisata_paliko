@@ -115,33 +115,212 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
             return Center(child: Text('Gagal memuat: ${snapshot.error}'));
           }
           final spots = snapshot.data ?? const <Spot>[];
-          if (spots.isEmpty) {
-            return const Center(
-              child: Text('Tidak ada usulan spot yang menunggu verifikasi.'),
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: spots.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final spot = spots[index];
-              return Card(
-                child: ListTile(
-                  title: Text(spot.name),
-                  subtitle: Text('${spot.area}\nUsul oleh ${spot.creatorName}'),
-                  isThreeLine: true,
-                  onTap: () => widget.onOpenSpot(spot),
-                  trailing: PopupMenuButton<int>(
-                    onSelected: (value) => _verify(spot, value),
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 2, child: Text('Verifikasi')),
-                      PopupMenuItem(value: 3, child: Text('Tolak')),
-                    ],
-                  ),
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            children: [
+              if (!widget.showAppBar) ...[
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Verifikasi spot',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Tinjau usulan tempat sebelum ditampilkan ke publik.',
+                            style: TextStyle(
+                              color: Color(0xFF718096),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Muat ulang',
+                      onPressed: () => setState(_reload),
+                      icon: const Icon(Icons.refresh_rounded),
+                    ),
+                  ],
                 ),
-              );
-            },
+                const SizedBox(height: 18),
+              ],
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF3EC),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.pending_actions_rounded,
+                      color: Color(0xFF1B5E20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        spots.isEmpty
+                            ? 'Semua usulan sudah ditangani.'
+                            : '${spots.length} usulan menunggu ditinjau',
+                        style: const TextStyle(
+                          color: Color(0xFF1B5E20),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (spots.isEmpty)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 36,
+                      horizontal: 20,
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.verified_rounded,
+                          size: 42,
+                          color: const Color(0xFF1B5E20)
+                              .withValues(alpha: 0.75),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Tidak ada usulan baru',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Semua pengajuan spot sudah selesai diproses.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Color(0xFF718096),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                for (final spot in spots) ...[
+                  Card(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () => widget.onOpenSpot(spot),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 15, 8, 15),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE8F3E8),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Icon(
+                                Icons.location_on_outlined,
+                                color: Color(0xFF1B5E20),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    spot.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    spot.area,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Color(0xFF718096),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 9),
+                                  DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF3F6F2),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 5,
+                                      ),
+                                      child: Text(
+                                        'Usul oleh ${spot.creatorName}',
+                                        style: const TextStyle(
+                                          color: Color(0xFF52705A),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            PopupMenuButton<int>(
+                              tooltip: 'Tindakan',
+                              icon: const Icon(Icons.more_vert_rounded),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              onSelected: (value) => _verify(spot, value),
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                  value: 2,
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Icon(Icons.check_circle_outline),
+                                    title: Text('Verifikasi spot'),
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 3,
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Icon(Icons.close_rounded),
+                                    title: Text('Tolak usulan'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+            ],
           );
         },
       ),
@@ -321,30 +500,99 @@ class _UserRoleTabState extends State<_UserRoleTab> {
               return ListTile(
                 title: Text(jsonString(user['nama'])),
                 subtitle: Text('@${jsonString(user['username'])}'),
-                trailing: DropdownButton<int>(
-                  value: roleItems.any((item) => item.value == roleId)
-                      ? roleId
-                      : null,
-                  hint: const Text('Belum ada role'),
-                  items: roleItems,
-                  onChanged: (value) async {
-                    if (value == null) return;
-                    try {
-                      await widget.repository.updateUserRole(
-                        userId: jsonString(user['id']),
-                        roleId: value,
-                      );
-                      _reload();
-                    } on Exception catch (error) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Gagal mengubah role: $error'),
-                          ),
-                        );
-                      }
-                    }
-                  },
+                trailing: Container(
+                  width: 164,
+                  height: 42,
+                  padding: const EdgeInsets.only(left: 12, right: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE0E8DF)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: roleItems.any((item) => item.value == roleId)
+                          ? roleId
+                          : null,
+                      hint: const Text(
+                        'Pilih role',
+                        style: TextStyle(
+                          color: Color(0xFF7A8A7C),
+                          fontSize: 13,
+                        ),
+                      ),
+                      isExpanded: true,
+                      isDense: true,
+                      itemHeight: 48,
+                      borderRadius: BorderRadius.circular(16),
+                      dropdownColor: Colors.white,
+                      elevation: 8,
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: Color(0xFF1B5E20),
+                        size: 19,
+                      ),
+                      style: const TextStyle(
+                        color: Color(0xFF243042),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      items: roleItems
+                          .map(
+                            (item) => DropdownMenuItem<int>(
+                              value: item.value,
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: item.value == roleId
+                                      ? const Color(0xFFE8F3E8)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(9),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        (item.child as Text).data ?? 'Role',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (item.value == roleId)
+                                      const Icon(
+                                        Icons.check_rounded,
+                                        size: 16,
+                                        color: Color(0xFF1B5E20),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) async {
+                        if (value == null) return;
+                        try {
+                          await widget.repository.updateUserRole(
+                            userId: jsonString(user['id']),
+                            roleId: value,
+                          );
+                          _reload();
+                        } on Exception catch (error) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Gagal mengubah role: $error'),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ),
                 ),
               );
             }),
@@ -427,56 +675,220 @@ class _MasterTabState extends State<_MasterTab> {
         }
         final data = snapshot.data!;
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           children: [
-            ListTile(
-              leading: const Icon(Icons.category_outlined),
-              title: const Text('Kategori'),
-              subtitle: Text(
-                '${data.categories.length} kategori dari Supabase',
-              ),
-              trailing: IconButton(
-                tooltip: 'Tambah kategori',
-                onPressed: () => _showCategoryDialog(context),
-                icon: const Icon(Icons.add),
+            const Text(
+              'Data master',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF243042),
               ),
             ),
-            for (final category in data.categories)
-              ListTile(
-                dense: true,
-                title: Text(jsonString(category['nama'])),
-                subtitle: Text(jsonString(category['slug'])),
-              ),
-            const Divider(height: 32),
-            ListTile(
-              leading: const Icon(Icons.location_city_outlined),
-              title: const Text('Kecamatan'),
-              subtitle: Text(
-                '${data.districts.length} kecamatan dari Supabase',
-              ),
-              trailing: IconButton(
-                tooltip: 'Tambah kecamatan',
-                onPressed: data.cities.isEmpty
-                    ? null
-                    : () => _showDistrictDialog(context, data.cities),
-                icon: const Icon(Icons.add),
-              ),
+            const SizedBox(height: 5),
+            const Text(
+              'Kelola kategori dan wilayah yang digunakan di aplikasi.',
+              style: TextStyle(color: Color(0xFF718096)),
             ),
-            for (final district in data.districts)
-              ListTile(
-                dense: true,
-                title: Text(jsonString(district['nama'])),
-                subtitle: Text(
-                  jsonString(
-                    asJsonMap(district['kabupaten_kota'])?['nama'],
-                    'Kabupaten/kota tidak diketahui',
-                  ),
+            const SizedBox(height: 20),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F3E8),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.category_outlined,
+                            color: Color(0xFF1B5E20),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Kategori',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              Text(
+                                '${data.categories.length} kategori tersedia',
+                                style: const TextStyle(
+                                  color: Color(0xFF718096),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        FilledButton.tonalIcon(
+                          onPressed: () => _showCategoryDialog(context),
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('Tambah'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    for (final category in data.categories)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF7F9F6),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.label_outline,
+                              size: 18,
+                              color: Color(0xFF52705A),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                jsonString(category['nama']),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              jsonString(category['slug']),
+                              style: const TextStyle(
+                                color: Color(0xFF87958A),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
               ),
-            if (data.cities.isEmpty)
-              const ListTile(
-                title: Text('Data kabupaten/kota belum tersedia.'),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEAF1F8),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.location_city_outlined,
+                            color: Color(0xFF315B7D),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Kecamatan',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              Text(
+                                '${data.districts.length} kecamatan tersedia',
+                                style: const TextStyle(
+                                  color: Color(0xFF718096),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        FilledButton.tonalIcon(
+                          onPressed: data.cities.isEmpty
+                              ? null
+                              : () => _showDistrictDialog(context, data.cities),
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('Tambah'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    for (final district in data.districts)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF7F9FB),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.place_outlined,
+                              size: 18,
+                              color: Color(0xFF52708A),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    jsonString(district['nama']),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    jsonString(
+                                      asJsonMap(
+                                        district['kabupaten_kota'],
+                                      )?['nama'],
+                                      'Kabupaten/kota tidak diketahui',
+                                    ),
+                                    style: const TextStyle(
+                                      color: Color(0xFF8795A5),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (data.cities.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Text('Data kabupaten/kota belum tersedia.'),
+                      ),
+                  ],
+                ),
               ),
+            ),
           ],
         );
       },

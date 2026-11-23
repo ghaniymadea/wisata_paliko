@@ -36,6 +36,10 @@ class Spot {
     required this.creatorName,
     required this.creatorUsername,
     required this.createdAt,
+    this.likeCount = 0,
+    this.tipCount = 0,
+    this.shareCount = 0,
+    this.likedByMe = false,
   });
 
   final String id;
@@ -51,6 +55,10 @@ class Spot {
   final String creatorName;
   final String creatorUsername;
   final DateTime createdAt;
+  final int likeCount;
+  final int tipCount;
+  final int shareCount;
+  final bool likedByMe;
 
   factory Spot.fromJson(JsonMap json) {
     final district = asJsonMap(json['kecamatan']);
@@ -58,6 +66,15 @@ class Spot {
     final category = asJsonMap(json['kategori']);
     final creator = asJsonMap(json['users']);
     final media = json['media_spot'];
+    final likeRows = json['spot_likes'];
+    final tipRows = json['tips_warga'];
+    final shareRows = json['spot_shares'];
+    int relationCount(Object? value) {
+      final rows = value is List ? value : const [];
+      if (rows.isEmpty) return 0;
+      final count = asJsonMap(rows.first)?['count'];
+      return count is num ? count.toInt() : 0;
+    }
     final mediaItems = media is List
         ? media.map(asJsonMap).whereType<JsonMap>().toList()
         : <JsonMap>[];
@@ -90,6 +107,10 @@ class Spot {
       createdAt:
           DateTime.tryParse(jsonString(json['created_at'])) ??
           DateTime.fromMillisecondsSinceEpoch(0),
+      likeCount: relationCount(likeRows),
+      tipCount: relationCount(tipRows),
+      shareCount: relationCount(shareRows),
+      likedByMe: json['liked_by_me'] == true,
     );
   }
 }

@@ -9,6 +9,19 @@ class ExplorerRepository {
 
   final SupabaseClient _client;
 
+  static const _spotSelectBase =
+      'id,id_pembuat,id_kecamatan,nama,ringkasan_editorial,latitude,longitude,created_at,'
+      'kecamatan(nama,kabupaten_kota(nama)),kategori(nama),'
+      'media_spot(url_media,is_cover),'
+      'users!spots_id_pembuat_fkey(nama,username)';
+
+  static const _spotSelectWithEngagement =
+      'id,id_pembuat,id_kecamatan,nama,ringkasan_editorial,latitude,longitude,created_at,'
+      'kecamatan(nama,kabupaten_kota(nama)),kategori(nama),'
+      'media_spot(url_media,is_cover),'
+      'spot_likes(count),tips_warga(count),spot_shares(count),'
+      'users!spots_id_pembuat_fkey(nama,username)';
+
   Future<JsonMap> getMyProfile() async {
     final row = await _client
         .from('users')
@@ -31,12 +44,7 @@ class ExplorerRepository {
   Future<List<Spot>> getPendingSpots() async {
     final rows = await _client
         .from('spots')
-        .select(
-          'id,id_pembuat,id_kecamatan,nama,ringkasan_editorial,latitude,longitude,created_at,'
-          'kecamatan(nama,kabupaten_kota(nama)),kategori(nama),'
-          'media_spot(url_media,is_cover),'
-          'users!spots_id_pembuat_fkey(nama,username)',
-        )
+        .select(_spotSelectBase)
         .eq('id_status_verifikasi', 1)
         .order('created_at', ascending: false);
     return rows.map((row) => Spot.fromJson(row)).toList();
@@ -242,39 +250,61 @@ class ExplorerRepository {
   }
 
   Future<List<Spot>> getApprovedSpots() async {
-    final query = _client
-        .from('spots')
-        .select(
-          'id,id_pembuat,id_kecamatan,nama,ringkasan_editorial,latitude,longitude,created_at,'
-          'kecamatan(nama,kabupaten_kota(nama)),kategori(nama),'
-          'media_spot(url_media,is_cover),'
-          'users!spots_id_pembuat_fkey(nama,username)',
-        );
-    final approvedRows = await query
-        .eq('id_status_verifikasi', 2)
-        .order('created_at', ascending: false);
+    late final List<Map<String, dynamic>> approvedRows;
+    var engagementAvailable = true;
+    try {
+      approvedRows = await _client
+          .from('spots')
+          .select(_spotSelectWithEngagement)
+          .eq('id_status_verifikasi', 2)
+          .order('created_at', ascending: false);
+    } on PostgrestException {
+      // Fallback agar aplikasi tetap bisa dibuka sebelum migration engagement
+      // dijalankan di Supabase. Angka akan tampil setelah migration aktif.
+      engagementAvailable = false;
+      approvedRows = await _client
+          .from('spots')
+          .select(_spotSelectBase)
+          .eq('id_status_verifikasi', 2)
+          .order('created_at', ascending: false);
+    }
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
       return approvedRows.map((row) => Spot.fromJson(row)).toList();
     }
 
+    final likedRows = engagementAvailable
+        ? await _client
+            .from('spot_likes')
+            .select('id_spot')
+            .eq('id_user', userId)
+        : <Map<String, dynamic>>[];
+    final likedIds = likedRows.map((row) => jsonString(row['id_spot'])).toSet();
+    Spot parseSpot(Map<String, dynamic> row) => Spot.fromJson({
+      ...row,
+      'liked_by_me': likedIds.contains(jsonString(row['id'])),
+    });
+
     // Spot milik sendiri yang sedang menunggu verifikasi tetap ditampilkan
     // kepada pemiliknya setelah diedit, tetapi tidak ditampilkan ke user lain.
     final pendingRows = await _client
         .from('spots')
-        .select(
-          'id,id_pembuat,id_kecamatan,nama,ringkasan_editorial,latitude,longitude,created_at,'
-          'kecamatan(nama,kabupaten_kota(nama)),kategori(nama),'
-          'media_spot(url_media,is_cover),'
-          'users!spots_id_pembuat_fkey(nama,username)',
-        )
+        .select(engagementAvailable ? _spotSelectWithEngagement : _spotSelectBase)
         .eq('id_status_verifikasi', 1)
         .eq('id_pembuat', userId)
         .order('created_at', ascending: false);
-    return [
-      ...approvedRows.map((row) => Spot.fromJson(row)),
-      ...pendingRows.map((row) => Spot.fromJson(row)),
-    ];
+    return [...approvedRows.map(parseSpot), ...pendingRows.map(parseSpot)];
+  }
+
+  Future<bool> toggleSpotLike(String spotId) async {
+    return _client.rpc<bool>('toggle_spot_like', params: {'p_id_spot': spotId});
+  }
+
+  Future<void> recordSpotShare(String spotId) async {
+    await _client.from('spot_shares').insert({
+      'id_spot': spotId,
+      'id_user': _requireUserId(),
+    });
   }
 
   Future<List<Story>> getActiveStories() async {
