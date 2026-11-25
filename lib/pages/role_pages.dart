@@ -2,7 +2,8 @@ import 'package:material_ui/material_ui.dart';
 
 import '../data/explorer_repository.dart';
 import '../data/models.dart';
-import 'admin_workflow_pages.dart' hide RefreshIndicator;
+import '../widgets/motion_card.dart';
+import 'admin_workflow_pages.dart';
 
 class _RoleRefreshState extends StatelessWidget {
   const _RoleRefreshState({required this.onRefresh, required this.child});
@@ -121,10 +122,7 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
           ? AppBar(
               title: const Text('Verifikasi Spot'),
               actions: [
-                IconButton(
-                  onPressed: _reload,
-                  icon: const Icon(Icons.refresh),
-                ),
+                IconButton(onPressed: _reload, icon: const Icon(Icons.refresh)),
               ],
             )
           : null,
@@ -150,23 +148,95 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
               children: [
-              if (!widget.showAppBar) ...[
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Verifikasi spot',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
+                if (!widget.showAppBar) ...[
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Verifikasi spot',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Tinjau usulan tempat sebelum ditampilkan ke publik.',
+                              style: TextStyle(
+                                color: Color(0xFF718096),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Muat ulang',
+                        onPressed: _reload,
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                ],
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEAF3EC),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.pending_actions_rounded,
+                        color: Color(0xFF1B5E20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          spots.isEmpty
+                              ? 'Semua usulan sudah ditangani.'
+                              : '${spots.length} usulan menunggu ditinjau',
+                          style: const TextStyle(
+                            color: Color(0xFF1B5E20),
+                            fontWeight: FontWeight.w700,
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Tinjau usulan tempat sebelum ditampilkan ke publik.',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                if (spots.isEmpty)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 36,
+                        horizontal: 20,
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.verified_rounded,
+                            size: 42,
+                            color: const Color(0xFF1B5E20)
+                                .withValues(alpha: 0.75),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Tidak ada usulan baru',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Semua pengajuan spot sudah selesai diproses.',
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Color(0xFF718096),
                               fontSize: 12,
@@ -175,183 +245,111 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
                         ],
                       ),
                     ),
-                    IconButton(
-                      tooltip: 'Muat ulang',
-                    onPressed: _reload,
-                      icon: const Icon(Icons.refresh_rounded),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-              ],
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEAF3EC),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.pending_actions_rounded,
-                      color: Color(0xFF1B5E20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        spots.isEmpty
-                            ? 'Semua usulan sudah ditangani.'
-                            : '${spots.length} usulan menunggu ditinjau',
-                        style: const TextStyle(
-                          color: Color(0xFF1B5E20),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              if (spots.isEmpty)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 36,
-                      horizontal: 20,
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.verified_rounded,
-                          size: 42,
-                          color: const Color(0xFF1B5E20)
-                              .withValues(alpha: 0.75),
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Tidak ada usulan baru',
-                          style: TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Semua pengajuan spot sudah selesai diproses.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Color(0xFF718096),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                for (final spot in spots) ...[
-                  Card(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
-                      onTap: () => widget.onOpenSpot(spot),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 15, 8, 15),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE8F3E8),
-                                borderRadius: BorderRadius.circular(14),
+                  )
+                else
+                  for (final spot in spots) ...[
+                    Card(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () => widget.onOpenSpot(spot),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 15, 8, 15),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE8F3E8),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: const Icon(
+                                  Icons.location_on_outlined,
+                                  color: Color(0xFF1B5E20),
+                                ),
                               ),
-                              child: const Icon(
-                                Icons.location_on_outlined,
-                                color: Color(0xFF1B5E20),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    spot.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  Text(
-                                    spot.area,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Color(0xFF718096),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 9),
-                                  DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF3F6F2),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 5,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      spot.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
                                       ),
-                                      child: Text(
-                                        'Usul oleh ${spot.creatorName}',
-                                        style: const TextStyle(
-                                          color: Color(0xFF52705A),
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      spot.area,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Color(0xFF718096),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 9),
+                                    DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF3F6F2),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 5,
+                                        ),
+                                        child: Text(
+                                          'Usul oleh ${spot.creatorName}',
+                                          style: const TextStyle(
+                                            color: Color(0xFF52705A),
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuButton<int>(
+                                tooltip: 'Tindakan',
+                                icon: const Icon(Icons.more_vert_rounded),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                onSelected: (value) => _verify(spot, value),
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem(
+                                    value: 2,
+                                    child: ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: Icon(Icons.check_circle_outline),
+                                      title: Text('Verifikasi spot'),
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 3,
+                                    child: ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: Icon(Icons.close_rounded),
+                                      title: Text('Tolak usulan'),
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                            PopupMenuButton<int>(
-                              tooltip: 'Tindakan',
-                              icon: const Icon(Icons.more_vert_rounded),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              onSelected: (value) => _verify(spot, value),
-                              itemBuilder: (_) => const [
-                                PopupMenuItem(
-                                  value: 2,
-                                  child: ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: Icon(Icons.check_circle_outline),
-                                    title: Text('Verifikasi spot'),
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 3,
-                                  child: ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: Icon(Icons.close_rounded),
-                                    title: Text('Tolak usulan'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                ],
+                    const SizedBox(height: 10),
+                  ],
               ],
             ),
           );
@@ -529,209 +527,215 @@ class _UserRoleTabState extends State<_UserRoleTab> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
             children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(2, 0, 2, 14),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Manajemen pengguna',
-                          style: TextStyle(
-                            color: Color(0xFF243042),
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Atur akses dan peran akun.',
-                          style: TextStyle(
-                            color: Color(0xFF718096),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F3E8),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${users.length} akun',
-                      style: const TextStyle(
-                        color: Color(0xFF1B5E20),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton.filledTonal(
-                    tooltip: 'Muat ulang pengguna',
-                    onPressed: _reload,
-                    icon: const Icon(Icons.refresh_rounded),
-                  ),
-                ],
-              ),
-            ),
-            ...users.map((user) {
-              final roleId = jsonInt(user['id_role']);
-              final roleItems = roles
-                  .map((role) {
-                    final id = jsonInt(role['id']);
-                    return id == null
-                        ? null
-                        : DropdownMenuItem<int>(
-                            value: id,
-                            child: Text(jsonString(role['nama'], 'Role')),
-                          );
-                  })
-                  .whereType<DropdownMenuItem<int>>()
-                  .toList();
-              final name = jsonString(user['nama'], 'Pengguna');
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-                  tileColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    side: const BorderSide(color: Color(0xFFE8EDE6)),
-                  ),
-                  leading: CircleAvatar(
-                    radius: 21,
-                    backgroundColor: const Color(0xFFE8F3E8),
-                    child: Text(
-                      name.trim().isEmpty
-                          ? 'P'
-                          : name.trim().substring(0, 1).toUpperCase(),
-                      style: const TextStyle(
-                        color: Color(0xFF1B5E20),
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  titleTextStyle: const TextStyle(
-                    color: Color(0xFF243042),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                  ),
-                  subtitleTextStyle: const TextStyle(
-                    color: Color(0xFF718096),
-                    fontSize: 11,
-                  ),
-                  title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  subtitle: Text(
-                    '@${jsonString(user['username'])}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                trailing: Container(
-                  width: 132,
-                  height: 42,
-                  padding: const EdgeInsets.only(left: 12, right: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE0E8DF)),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<int>(
-                      value: roleItems.any((item) => item.value == roleId)
-                          ? roleId
-                          : null,
-                      hint: const Text(
-                        'Pilih role',
-                        style: TextStyle(
-                          color: Color(0xFF7A8A7C),
-                          fontSize: 13,
-                        ),
-                      ),
-                      isExpanded: true,
-                      isDense: true,
-                      itemHeight: 48,
-                      borderRadius: BorderRadius.circular(16),
-                      dropdownColor: Colors.white,
-                      elevation: 8,
-                      icon: const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: Color(0xFF1B5E20),
-                        size: 19,
-                      ),
-                      style: const TextStyle(
-                        color: Color(0xFF243042),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      items: roleItems
-                          .map(
-                            (item) => DropdownMenuItem<int>(
-                              value: item.value,
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 7,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: item.value == roleId
-                                      ? const Color(0xFFE8F3E8)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(9),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        (item.child as Text).data ?? 'Role',
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    if (item.value == roleId)
-                                      const Icon(
-                                        Icons.check_rounded,
-                                        size: 16,
-                                        color: Color(0xFF1B5E20),
-                                      ),
-                                  ],
-                                ),
-                              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(2, 0, 2, 14),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Manajemen pengguna',
+                            style: TextStyle(
+                              color: Color(0xFF243042),
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
                             ),
-                          )
-                          .toList(),
-                      onChanged: (value) async {
-                        if (value == null) return;
-                        try {
-                          await widget.repository.updateUserRole(
-                            userId: jsonString(user['id']),
-                            roleId: value,
-                          );
-                          await _reload();
-                        } on Exception catch (error) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Gagal mengubah role: $error'),
-                              ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Atur akses dan peran akun.',
+                            style: TextStyle(
+                              color: Color(0xFF718096),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F3E8),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${users.length} akun',
+                        style: const TextStyle(
+                          color: Color(0xFF1B5E20),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton.filledTonal(
+                      tooltip: 'Muat ulang pengguna',
+                      onPressed: _reload,
+                      icon: const Icon(Icons.refresh_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              ...users.map((user) {
+                final roleId = jsonInt(user['id_role']);
+                final roleItems = roles
+                    .map((role) {
+                      final id = jsonInt(role['id']);
+                      return id == null
+                          ? null
+                          : DropdownMenuItem<int>(
+                              value: id,
+                              child: Text(jsonString(role['nama'], 'Role')),
                             );
-                          }
-                        }
-                      },
+                    })
+                    .whereType<DropdownMenuItem<int>>()
+                    .toList();
+                final name = jsonString(user['nama'], 'Pengguna');
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                    tileColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      side: const BorderSide(color: Color(0xFFE8EDE6)),
+                    ),
+                    leading: CircleAvatar(
+                      radius: 21,
+                      backgroundColor: const Color(0xFFE8F3E8),
+                      child: Text(
+                        name.trim().isEmpty
+                            ? 'P'
+                            : name.trim().substring(0, 1).toUpperCase(),
+                        style: const TextStyle(
+                          color: Color(0xFF1B5E20),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    titleTextStyle: const TextStyle(
+                      color: Color(0xFF243042),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    subtitleTextStyle: const TextStyle(
+                      color: Color(0xFF718096),
+                      fontSize: 11,
+                    ),
+                    title: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      '@${jsonString(user['username'])}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Container(
+                      width: 132,
+                      height: 42,
+                      padding: const EdgeInsets.only(left: 12, right: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE0E8DF)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          value: roleItems.any((item) => item.value == roleId)
+                              ? roleId
+                              : null,
+                          hint: const Text(
+                            'Pilih role',
+                            style: TextStyle(
+                              color: Color(0xFF7A8A7C),
+                              fontSize: 13,
+                            ),
+                          ),
+                          isExpanded: true,
+                          isDense: true,
+                          itemHeight: 48,
+                          borderRadius: BorderRadius.circular(16),
+                          dropdownColor: Colors.white,
+                          elevation: 8,
+                          icon: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Color(0xFF1B5E20),
+                            size: 19,
+                          ),
+                          style: const TextStyle(
+                            color: Color(0xFF243042),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          items: roleItems
+                              .map(
+                                (item) => DropdownMenuItem<int>(
+                                  value: item.value,
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 7,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: item.value == roleId
+                                          ? const Color(0xFFE8F3E8)
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(9),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            (item.child as Text).data ?? 'Role',
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (item.value == roleId)
+                                          const Icon(
+                                            Icons.check_rounded,
+                                            size: 16,
+                                            color: Color(0xFF1B5E20),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) async {
+                            if (value == null) return;
+                            try {
+                              await widget.repository.updateUserRole(
+                                userId: jsonString(user['id']),
+                                roleId: value,
+                              );
+                              await _reload();
+                            } on Exception catch (error) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Gagal mengubah role: $error',
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                ),
-              );
-            }),
+                );
+              }),
             ],
           ),
         );
@@ -825,218 +829,219 @@ class _MasterTabState extends State<_MasterTab> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
             children: [
-            const Text(
-              'Data master',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF243042),
+              const Text(
+                'Data master',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF243042),
+                ),
               ),
-            ),
-            const SizedBox(height: 5),
-            const Text(
-              'Kelola kategori dan wilayah yang digunakan di aplikasi.',
-              style: TextStyle(color: Color(0xFF718096)),
-            ),
-            const SizedBox(height: 20),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
+              const SizedBox(height: 5),
+              const Text(
+                'Kelola kategori dan wilayah yang digunakan di aplikasi.',
+                style: TextStyle(color: Color(0xFF718096)),
+              ),
+              const SizedBox(height: 20),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F3E8),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.category_outlined,
+                              color: Color(0xFF1B5E20),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Kategori',
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                Text(
+                                  '${data.categories.length} kategori tersedia',
+                                  style: const TextStyle(
+                                    color: Color(0xFF718096),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: () => _showCategoryDialog(context),
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Tambah'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      for (final category in data.categories)
                         Container(
-                          width: 44,
-                          height: 44,
+                          margin: const EdgeInsets.only(bottom: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE8F3E8),
-                            borderRadius: BorderRadius.circular(14),
+                            color: const Color(0xFFF7F9F6),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(
-                            Icons.category_outlined,
-                            color: Color(0xFF1B5E20),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
                             children: [
-                              const Text(
-                                'Kategori',
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w800,
+                              const Icon(
+                                Icons.label_outline,
+                                size: 18,
+                                color: Color(0xFF52705A),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  jsonString(category['nama']),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                               Text(
-                                '${data.categories.length} kategori tersedia',
+                                jsonString(category['slug']),
                                 style: const TextStyle(
-                                  color: Color(0xFF718096),
+                                  color: Color(0xFF87958A),
                                   fontSize: 12,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        FilledButton.tonalIcon(
-                          onPressed: () => _showCategoryDialog(context),
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Tambah'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    for (final category in data.categories)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF7F9F6),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.label_outline,
-                              size: 18,
-                              color: Color(0xFF52705A),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                jsonString(category['nama']),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              jsonString(category['slug']),
-                              style: const TextStyle(
-                                color: Color(0xFF87958A),
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEAF1F8),
-                            borderRadius: BorderRadius.circular(14),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEAF1F8),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.location_city_outlined,
+                              color: Color(0xFF315B7D),
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.location_city_outlined,
-                            color: Color(0xFF315B7D),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Kecamatan',
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w800,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Kecamatan',
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
+                                Text(
+                                  '${data.districts.length} kecamatan tersedia',
+                                  style: const TextStyle(
+                                    color: Color(0xFF718096),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: data.cities.isEmpty
+                                ? null
+                                : () =>
+                                      _showDistrictDialog(context, data.cities),
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Tambah'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      for (final district in data.districts)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF7F9FB),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.place_outlined,
+                                size: 18,
+                                color: Color(0xFF52708A),
                               ),
-                              Text(
-                                '${data.districts.length} kecamatan tersedia',
-                                style: const TextStyle(
-                                  color: Color(0xFF718096),
-                                  fontSize: 12,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      jsonString(district['nama']),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      jsonString(
+                                        asJsonMap(
+                                          district['kabupaten_kota'],
+                                        )?['nama'],
+                                        'Kabupaten/kota tidak diketahui',
+                                      ),
+                                      style: const TextStyle(
+                                        color: Color(0xFF8795A5),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        FilledButton.tonalIcon(
-                          onPressed: data.cities.isEmpty
-                              ? null
-                              : () => _showDistrictDialog(context, data.cities),
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Tambah'),
+                      if (data.cities.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Text('Data kabupaten/kota belum tersedia.'),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    for (final district in data.districts)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF7F9FB),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.place_outlined,
-                              size: 18,
-                              color: Color(0xFF52708A),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    jsonString(district['nama']),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  Text(
-                                    jsonString(
-                                      asJsonMap(
-                                        district['kabupaten_kota'],
-                                      )?['nama'],
-                                      'Kabupaten/kota tidak diketahui',
-                                    ),
-                                    style: const TextStyle(
-                                      color: Color(0xFF8795A5),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    if (data.cities.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Text('Data kabupaten/kota belum tersedia.'),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
             ],
           ),
         );
@@ -1248,45 +1253,45 @@ class _ActivityTabState extends State<_ActivityTab> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 0, 4, 14),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Aktivitas terbaru',
-                      style: TextStyle(
-                        color: Color(0xFF243042),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 14),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Aktivitas terbaru',
+                        style: TextStyle(
+                          color: Color(0xFF243042),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F3E8),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${rows.length} aktivitas',
-                      style: const TextStyle(
-                        color: Color(0xFF1B5E20),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F3E8),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${rows.length} aktivitas',
+                        style: const TextStyle(
+                          color: Color(0xFF1B5E20),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            for (final row in rows) ...[
-              _ActivityCard(row: row),
-              const SizedBox(height: 10),
-            ],
+              for (final row in rows) ...[
+                _ActivityCard(row: row),
+                const SizedBox(height: 10),
+              ],
             ],
           ),
         );
@@ -1306,79 +1311,81 @@ class _ActivityCard extends StatelessWidget {
     final activity = jsonString(row['aktivitas'], 'Aktivitas');
     final rawDate = jsonString(row['waktu']);
     final date = rawDate.length >= 10 ? rawDate.substring(0, 10) : '—';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE8EDE6)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x080F2414),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: const Color(0xFFEAF3EC),
-              borderRadius: BorderRadius.circular(14),
+    return MotionCard(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE8EDE6)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x080F2414),
+              blurRadius: 12,
+              offset: Offset(0, 4),
             ),
-            child: const Icon(
-              Icons.history_rounded,
-              color: Color(0xFF1B5E20),
-              size: 21,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  activity,
-                  style: const TextStyle(
-                    color: Color(0xFF243042),
-                    fontSize: 14,
-                    height: 1.3,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  jsonString(user?['nama'], 'Pengguna'),
-                  style: const TextStyle(
-                    color: Color(0xFF718096),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF4F6F2),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              date,
-              style: const TextStyle(
-                color: Color(0xFF66736A),
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF3EC),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.history_rounded,
+                color: Color(0xFF1B5E20),
+                size: 21,
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    activity,
+                    style: const TextStyle(
+                      color: Color(0xFF243042),
+                      fontSize: 14,
+                      height: 1.3,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    jsonString(user?['nama'], 'Pengguna'),
+                    style: const TextStyle(
+                      color: Color(0xFF718096),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF4F6F2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                date,
+                style: const TextStyle(
+                  color: Color(0xFF66736A),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:motion/motion.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -12,11 +13,19 @@ import 'package:url_launcher/url_launcher.dart';
 import 'auth/auth_gate.dart';
 import 'data/explorer_repository.dart';
 import 'data/models.dart';
-import 'pages/admin_workflow_pages.dart' hide RefreshIndicator;
+import 'pages/admin_workflow_pages.dart';
 import 'pages/role_pages.dart';
+import 'widgets/motion_card.dart';
+import 'widgets/lenis_scroll.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Motion.instance.initialize();
+  } catch (error, stackTrace) {
+    debugPrint('Motion initialization failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
   const supabaseUrl = String.fromEnvironment(
     'SUPABASE_URL',
     defaultValue: 'https://vuycmgoxepxwxemkiwpt.supabase.co',
@@ -1313,17 +1322,120 @@ class _ExplorerShellState extends State<ExplorerShell>
           ),
           bottomNavigationBar: wide
               ? null
-              : NavigationBar(
+              : _AnimatedBottomNavigationBar(
                   selectedIndex: _tab,
-                  backgroundColor: Colors.white,
-                  indicatorColor: const Color(0xFFE5F1E5),
-                  onDestinationSelected: _selectTab,
                   destinations: destinations,
+                  onDestinationSelected: _selectTab,
                 ),
         );
       },
     );
   }
+}
+
+class _AnimatedBottomNavigationBar extends StatelessWidget {
+  const _AnimatedBottomNavigationBar({
+    required this.selectedIndex,
+    required this.destinations,
+    required this.onDestinationSelected,
+  });
+
+  final int selectedIndex;
+  final List<NavigationDestination> destinations;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: const BoxDecoration(
+      color: Colors.white,
+      border: Border(top: BorderSide(color: Color(0xFFE9EEE8))),
+    ),
+    child: SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+        child: Row(
+          children: [
+            for (var index = 0; index < destinations.length; index++)
+              Expanded(
+                child: _BottomNavigationItem(
+                  destination: destinations[index],
+                  selected: selectedIndex == index,
+                  onTap: () => onDestinationSelected(index),
+                ),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _BottomNavigationItem extends StatelessWidget {
+  const _BottomNavigationItem({
+    required this.destination,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final NavigationDestination destination;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    label: destination.label,
+    child: Tooltip(
+      message: destination.label,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          height: 58,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFE7F2E6) : Colors.transparent,
+            borderRadius: BorderRadius.circular(19),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedScale(
+                scale: selected ? 1.08 : 1,
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOutBack,
+                child: IconTheme(
+                  data: IconThemeData(
+                    size: 23,
+                    color: selected ? _forest : const Color(0xFF626B65),
+                  ),
+                  child: selected
+                      ? destination.selectedIcon ?? destination.icon
+                      : destination.icon,
+                ),
+              ),
+              const SizedBox(height: 3),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  height: 1.1,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? _forest : const Color(0xFF626B65),
+                ),
+                child: Text(destination.label, maxLines: 1),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class FeedPage extends StatefulWidget {
@@ -1411,271 +1523,283 @@ class _FeedPageState extends State<FeedPage> {
       return true;
     }).toList();
 
-    return CustomScrollView(
-      slivers: [
-        SliverPadding(
-          padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 8),
-          sliver: SliverToBoxAdapter(
-            child: Row(
-              children: [
-                const _BrandMark(),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Luak Explorer',
-                        style: TextStyle(
-                          color: _forest,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      Text(
-                        'PAYAKUMBUH & 50 KOTA',
-                        style: TextStyle(
-                          color: _muted,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Cari tempat',
-                  onPressed: widget.onExplore,
-                  icon: const Icon(Icons.search_rounded, color: _ink),
-                ),
-                IconButton(
-                  tooltip: 'Notifikasi',
-                  onPressed: widget.onNotifications,
-                  icon: const Icon(
-                    Icons.notifications_none_rounded,
-                    color: _ink,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        SliverPadding(
-          padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 0),
-          sliver: SliverToBoxAdapter(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                // Keep the region row compact on phones and narrow tablet
-                // previews so the status chip never pushes the dropdown out.
-                final compact = constraints.maxWidth < 760;
-                return Row(
-                  children: [
-                    const Icon(Icons.explore, size: 16, color: _forest),
-                    const SizedBox(width: 6),
-                    const Flexible(
-                      child: Text(
-                        'Menjelajah sekitar',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: _muted, fontSize: 12),
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: Container(
-                        height: 34,
-                        padding: const EdgeInsets.only(left: 10, right: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE3EAE2)),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: activeCity,
-                            isDense: true,
-                            borderRadius: BorderRadius.circular(16),
-                            dropdownColor: Colors.white,
-                            elevation: 8,
-                            menuMaxHeight: 260,
-                            icon: const Icon(
-                              Icons.keyboard_arrow_down_rounded,
-                              size: 17,
-                              color: _forest,
-                            ),
-                            style: const TextStyle(
-                              color: _ink,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                            items: cityOptions
-                                .map(
-                                  (city) => DropdownMenuItem<String>(
-                                    value: city,
-                                    child: Container(
-                                      width: 168,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 9,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: city == activeCity
-                                            ? const Color(0xFFE8F3E8)
-                                            : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              city,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          if (city == activeCity)
-                                            const Icon(
-                                              Icons.check_rounded,
-                                              size: 16,
-                                              color: _forest,
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                            selectedItemBuilder: (context) => cityOptions
-                                .map(
-                                  (city) => Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      city,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (city) {
-                              if (city != null)
-                                setState(() => _selectedCity = city);
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (!compact) ...[
-                      const SizedBox(width: 8),
-                      _tag('Sumatera Barat', const Color(0xFFE8F1E8), _forest),
-                    ],
-                  ],
-                );
-              },
-            ),
-          ),
-        ),
-        ...[
+    return LenisScroll(
+      child: CustomScrollView(
+        primary: true,
+        slivers: [
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
+            padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 8),
             sliver: SliverToBoxAdapter(
               child: Row(
                 children: [
-                  Text(
-                    'Cerita di sekitar',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  const _BrandMark(),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Luak Explorer',
+                          style: TextStyle(
+                            color: _forest,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          'PAYAKUMBUH & 50 KOTA',
+                          style: TextStyle(
+                            color: _muted,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const Spacer(),
                   IconButton(
-                    onPressed: widget.onAddStory,
-                    tooltip: 'Tambah cerita',
-                    icon: const Icon(Icons.add_circle_outline_rounded),
-                  ),
-                  TextButton(
+                    tooltip: 'Cari tempat',
                     onPressed: widget.onExplore,
-                    child: const Text('Lihat semua'),
+                    icon: const Icon(Icons.search_rounded, color: _ink),
+                  ),
+                  IconButton(
+                    tooltip: 'Notifikasi',
+                    onPressed: widget.onNotifications,
+                    icon: const Icon(
+                      Icons.notifications_none_rounded,
+                      color: _ink,
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 104,
-              child: ListView.separated(
-                padding: EdgeInsets.symmetric(horizontal: horizontal),
-                scrollDirection: Axis.horizontal,
-                itemCount: stories.length + 1,
-                separatorBuilder: (context, index) => const SizedBox(width: 15),
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return _AddStoryBubble(onTap: widget.onAddStory);
-                  }
-                  final story = stories[index - 1];
-                  return _StoryBubble(
-                    title: story.title,
-                    image: story.image,
-                    isNew: index == 1,
-                    onTap: () => widget.onOpenStory(story),
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 0),
+            sliver: SliverToBoxAdapter(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // Keep the region row compact on phones and narrow tablet
+                  // previews so the status chip never pushes the dropdown out.
+                  final compact = constraints.maxWidth < 760;
+                  return Row(
+                    children: [
+                      const Icon(Icons.explore, size: 16, color: _forest),
+                      const SizedBox(width: 6),
+                      const Flexible(
+                        child: Text(
+                          'Menjelajah sekitar',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: _muted, fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Container(
+                          height: 34,
+                          padding: const EdgeInsets.only(left: 10, right: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE3EAE2)),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: activeCity,
+                              isDense: true,
+                              borderRadius: BorderRadius.circular(16),
+                              dropdownColor: Colors.white,
+                              elevation: 8,
+                              menuMaxHeight: 260,
+                              icon: const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                size: 17,
+                                color: _forest,
+                              ),
+                              style: const TextStyle(
+                                color: _ink,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              items: cityOptions
+                                  .map(
+                                    (city) => DropdownMenuItem<String>(
+                                      value: city,
+                                      child: Container(
+                                        width: 168,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 9,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: city == activeCity
+                                              ? const Color(0xFFE8F3E8)
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                city,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (city == activeCity)
+                                              const Icon(
+                                                Icons.check_rounded,
+                                                size: 16,
+                                                color: _forest,
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              selectedItemBuilder: (context) => cityOptions
+                                  .map(
+                                    (city) => Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        city,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (city) {
+                                if (city != null)
+                                  setState(() => _selectedCity = city);
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (!compact) ...[
+                        const SizedBox(width: 8),
+                        _tag(
+                          'Sumatera Barat',
+                          const Color(0xFFE8F1E8),
+                          _forest,
+                        ),
+                      ],
+                    ],
                   );
                 },
               ),
             ),
           ),
-        ],
-        SliverPadding(
-          padding: EdgeInsets.fromLTRB(horizontal, 14, horizontal, 12),
-          sliver: SliverToBoxAdapter(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _filterChip('Untuk Anda', 0),
-                  const SizedBox(width: 8),
-                  _filterChip('Terbaru', 1),
-                  const SizedBox(width: 8),
-                  _filterChip('Kuliner Autentik', 2),
-                  const SizedBox(width: 8),
-                  _filterChip('Spot Alam', 3),
-                ],
+          ...[
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
+              sliver: SliverToBoxAdapter(
+                child: Row(
+                  children: [
+                    Text(
+                      'Cerita di sekitar',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: widget.onAddStory,
+                      tooltip: 'Tambah cerita',
+                      icon: const Icon(Icons.add_circle_outline_rounded),
+                    ),
+                    TextButton(
+                      onPressed: widget.onExplore,
+                      child: const Text('Lihat semua'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 104,
+                child: ListView.separated(
+                  padding: EdgeInsets.symmetric(horizontal: horizontal),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: stories.length + 1,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 15),
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return _AddStoryBubble(onTap: widget.onAddStory);
+                    }
+                    final story = stories[index - 1];
+                    return _StoryBubble(
+                      title: story.title,
+                      image: story.image,
+                      isNew: index == 1,
+                      onTap: () => widget.onOpenStory(story),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(horizontal, 14, horizontal, 12),
+            sliver: SliverToBoxAdapter(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _filterChip('Untuk Anda', 0),
+                    const SizedBox(width: 8),
+                    _filterChip('Terbaru', 1),
+                    const SizedBox(width: 8),
+                    _filterChip('Kuliner Autentik', 2),
+                    const SizedBox(width: 8),
+                    _filterChip('Spot Alam', 3),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        if (feedSpots.isEmpty)
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(28),
-              child: Center(child: Text('Belum ada spot untuk kategori ini.')),
-            ),
-          )
-        else
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: _Reveal(
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 760),
-                      child: _FeedPost(
-                        spot: feedSpots[index],
-                        isSaved: widget.saved.contains(feedSpots[index].id),
-                        onSave: () => widget.onSave(feedSpots[index]),
-                        onLike: () => widget.onLike(feedSpots[index]),
-                        onShare: () => widget.onShare(feedSpots[index]),
-                        onOpen: () => widget.onOpen(feedSpots[index]),
-                        onTips: () => widget.onOpenTips(feedSpots[index]),
+          if (feedSpots.isEmpty)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(28),
+                child: Center(
+                  child: Text('Belum ada spot untuk kategori ini.'),
+                ),
+              ),
+            )
+          else
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _Reveal(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 760),
+                        child: _FeedPost(
+                          spot: feedSpots[index],
+                          isSaved: widget.saved.contains(feedSpots[index].id),
+                          onSave: () => widget.onSave(feedSpots[index]),
+                          onLike: () => widget.onLike(feedSpots[index]),
+                          onShare: () => widget.onShare(feedSpots[index]),
+                          onOpen: () => widget.onOpen(feedSpots[index]),
+                          onTips: () => widget.onOpenTips(feedSpots[index]),
+                        ),
                       ),
                     ),
                   ),
                 ),
+                childCount: feedSpots.length,
               ),
-              childCount: feedSpots.length,
             ),
-          ),
-        const SliverToBoxAdapter(child: SizedBox(height: 12)),
-      ],
+          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+        ],
+      ),
     );
   }
 
@@ -1996,156 +2120,173 @@ class _ExplorePageState extends State<ExplorePage> {
             : constraints.maxWidth >= 760
             ? 3
             : 2;
-        return CustomScrollView(
-          slivers: [
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(horizontal, 22, horizontal, 15),
-              sliver: SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Temukan pesona',
-                      style: TextStyle(color: _muted),
-                    ),
-                    Text(
-                      'Luak Limopuluah',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      onChanged: (value) => setState(() => _query = value),
-                      decoration: InputDecoration(
-                        hintText: 'Cari tempat, kecamatan, atau kuliner',
-                        prefixIcon: const Icon(Icons.search, color: _forest),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 14,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFE7EAE5),
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFE7EAE5),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: _suggestSpot,
-                        icon: const Icon(Icons.add_location_alt_outlined),
-                        label: const Text('Usulkan Spot'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 43,
-                child: ListView.separated(
-                  padding: EdgeInsets.symmetric(horizontal: horizontal),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: categories.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    final category = categories[index];
-                    final selected = _category == category;
-                    return ChoiceChip(
-                      label: Text(category),
-                      selected: selected,
-                      onSelected: (_) => setState(() => _category = category),
-                      showCheckmark: false,
-                      backgroundColor: Colors.white,
-                      selectedColor: _forest,
-                      side: BorderSide(
-                        color: selected ? _forest : const Color(0xFFE5E8E3),
-                      ),
-                      labelStyle: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: selected ? Colors.white : _ink,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-            if (widget.spots.isNotEmpty)
+        return LenisScroll(
+          child: CustomScrollView(
+            primary: true,
+            slivers: [
               SliverPadding(
-                padding: EdgeInsets.fromLTRB(horizontal, 20, horizontal, 15),
+                padding: EdgeInsets.fromLTRB(horizontal, 22, horizontal, 15),
                 sliver: SliverToBoxAdapter(
-                  child: _CuratedBanner(
-                    image: widget.spots.first.image,
-                    onTap: () => widget.onOpen(widget.spots.first),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Temukan pesona',
+                                  style: TextStyle(color: _muted),
+                                ),
+                                Text(
+                                  'Luak Limopuluah',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton.icon(
+                            onPressed: _suggestSpot,
+                            icon: const Icon(
+                              Icons.add_location_alt_outlined,
+                              size: 18,
+                            ),
+                            label: const Text('Usulkan Spot'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        onChanged: (value) => setState(() => _query = value),
+                        decoration: InputDecoration(
+                          hintText: 'Cari tempat, kecamatan, atau kuliner',
+                          prefixIcon: const Icon(Icons.search, color: _forest),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE7EAE5),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE7EAE5),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 12),
-              sliver: SliverToBoxAdapter(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Spot pilihan',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                    Text(
-                      '${filtered.length} tempat',
-                      style: const TextStyle(color: _muted, fontSize: 12),
-                    ),
-                  ],
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 43,
+                  child: ListView.separated(
+                    padding: EdgeInsets.symmetric(horizontal: horizontal),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: categories.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final category = categories[index];
+                      final selected = _category == category;
+                      return ChoiceChip(
+                        label: Text(category),
+                        selected: selected,
+                        onSelected: (_) => setState(() => _category = category),
+                        showCheckmark: false,
+                        backgroundColor: Colors.white,
+                        selectedColor: _forest,
+                        side: BorderSide(
+                          color: selected ? _forest : const Color(0xFFE5E8E3),
+                        ),
+                        labelStyle: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: selected ? Colors.white : _ink,
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
-            ),
-            if (filtered.isEmpty)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(child: Text('Belum ada tempat yang cocok.')),
-              )
-            else
+              if (widget.spots.isNotEmpty)
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(horizontal, 20, horizontal, 15),
+                  sliver: SliverToBoxAdapter(
+                    child: _CuratedBanner(
+                      image: widget.spots.first.image,
+                      onTap: () => widget.onOpen(widget.spots.first),
+                    ),
+                  ),
+                ),
               SliverPadding(
-                padding: EdgeInsets.fromLTRB(
-                  horizontal - 4,
-                  0,
-                  horizontal - 4,
-                  20,
-                ),
-                sliver: SliverGrid(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: columns,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: columns >= 3 ? 0.82 : 0.72,
-                  ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => _Reveal(
-                      delay: Duration(milliseconds: index.clamp(0, 5) * 45),
-                      child: _SpotCard(
-                        spot: filtered[index],
-                        isSaved: widget.saved.contains(filtered[index].id),
-                        onSave: () => widget.onSave(filtered[index]),
-                        onTap: () => widget.onOpen(filtered[index]),
+                padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 12),
+                sliver: SliverToBoxAdapter(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Spot pilihan',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
                       ),
-                    ),
-                    childCount: filtered.length,
+                      Text(
+                        '${filtered.length} tempat',
+                        style: const TextStyle(color: _muted, fontSize: 12),
+                      ),
+                    ],
                   ),
                 ),
               ),
-          ],
+              if (filtered.isEmpty)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: Text('Belum ada tempat yang cocok.')),
+                )
+              else
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontal - 4,
+                    0,
+                    horizontal - 4,
+                    20,
+                  ),
+                  sliver: SliverGrid(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: columns >= 3 ? 0.82 : 0.72,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => _Reveal(
+                        delay: Duration(milliseconds: index.clamp(0, 5) * 45),
+                        child: _SpotCard(
+                          spot: filtered[index],
+                          isSaved: widget.saved.contains(filtered[index].id),
+                          onSave: () => widget.onSave(filtered[index]),
+                          onTap: () => widget.onOpen(filtered[index]),
+                        ),
+                      ),
+                      childCount: filtered.length,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         );
       },
     );
@@ -2596,104 +2737,106 @@ class _SpotCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _NetworkPhoto(image: spot.image),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Material(
-                      color: Colors.white.withValues(alpha: 0.92),
-                      shape: const CircleBorder(),
-                      child: IconButton(
-                        visualDensity: VisualDensity.compact,
-                        onPressed: onSave,
-                        icon: Icon(
-                          isSaved ? Icons.bookmark : Icons.bookmark_border,
-                          size: 19,
-                          color: _forest,
+    return MotionCard(
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _NetworkPhoto(image: spot.image),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Material(
+                        color: Colors.white.withValues(alpha: 0.92),
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          visualDensity: VisualDensity.compact,
+                          onPressed: onSave,
+                          icon: Icon(
+                            isSaved ? Icons.bookmark : Icons.bookmark_border,
+                            size: 19,
+                            color: _forest,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    left: 8,
-                    bottom: 8,
-                    child: _tag(
-                      spot.category == 'Kuliner Legendaris'
-                          ? 'KULINER'
-                          : 'ALAM',
-                      Colors.white.withValues(alpha: 0.94),
-                      _forest,
+                    Positioned(
+                      left: 8,
+                      bottom: 8,
+                      child: _tag(
+                        spot.category == 'Kuliner Legendaris'
+                            ? 'KULINER'
+                            : 'ALAM',
+                        Colors.white.withValues(alpha: 0.94),
+                        _forest,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    spot.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _ink,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      spot.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _ink,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        size: 12,
-                        color: _muted,
-                      ),
-                      const SizedBox(width: 2),
-                      Expanded(
-                        child: Text(
-                          spot.area,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 9, color: _muted),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 7),
-                  Row(
-                    children: [
-                      const Icon(Icons.verified, size: 13, color: _leaf),
-                      const SizedBox(width: 3),
-                      const Text(
-                        'Terverifikasi',
-                        style: TextStyle(
-                          fontSize: 10,
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on_outlined,
+                          size: 12,
                           color: _muted,
-                          fontWeight: FontWeight.w600,
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 2),
+                        Expanded(
+                          child: Text(
+                            spot.area,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 9, color: _muted),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Row(
+                      children: [
+                        const Icon(Icons.verified, size: 13, color: _leaf),
+                        const SizedBox(width: 3),
+                        const Text(
+                          'Terverifikasi',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: _muted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -2708,136 +2851,143 @@ class NearbyPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 15),
-          sliver: SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Jelajahi sekitar', style: TextStyle(color: _muted)),
-                Text(
-                  'Peta Spot',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-              ],
-            ),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: SliverToBoxAdapter(
-            child: Container(
-              height: 325,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE4EBDD),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Stack(
-                fit: StackFit.expand,
+    return LenisScroll(
+      child: CustomScrollView(
+        primary: true,
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 15),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _InteractiveSpotMap(spots: spots, onOpen: onOpen),
-                  if (spots.isNotEmpty)
-                    Positioned(
-                      left: 13,
-                      top: 13,
-                      child: FilledButton.icon(
-                        onPressed: () => _openGoogleMaps(context, spots.first),
-                        icon: const Icon(Icons.map_outlined, size: 18),
-                        label: const Text('Buka Google Maps'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: _forest,
-                        ),
-                      ),
-                    ),
-                  if (spots.isEmpty)
-                    const Center(
-                      child: Text(
-                        'Belum ada spot terverifikasi',
-                        style: TextStyle(
-                          color: _forest,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  Positioned(
-                    right: 13,
-                    bottom: 13,
-                    child: FloatingActionButton.small(
-                      heroTag: 'current-location',
-                      backgroundColor: Colors.white,
-                      foregroundColor: _forest,
-                      onPressed: () =>
-                          _showMessage(context, 'Lokasi Payakumbuh dipilih'),
-                      child: const Icon(Icons.my_location),
-                    ),
+                  const Text(
+                    'Jelajahi sekitar',
+                    style: TextStyle(color: _muted),
                   ),
-                  Positioned(
-                    left: 13,
-                    right: 70,
-                    bottom: 13,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 13,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.location_on, color: _forest, size: 18),
-                          SizedBox(width: 7),
-                          Expanded(
-                            child: Text(
-                              'Payakumbuh & Lima Puluh Kota',
-                              style: TextStyle(
-                                color: _ink,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                          Icon(Icons.tune, color: _muted, size: 18),
-                        ],
-                      ),
-                    ),
+                  Text(
+                    'Peta Spot',
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
                 ],
               ),
             ),
           ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 23, 20, 12),
-          sliver: SliverToBoxAdapter(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Spot populer dekat sini',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverToBoxAdapter(
+              child: Container(
+                height: 325,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE4EBDD),
+                  borderRadius: BorderRadius.circular(24),
                 ),
-                const Text('Lihat peta', style: TextStyle(color: _forest)),
-              ],
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _InteractiveSpotMap(spots: spots, onOpen: onOpen),
+                    if (spots.isNotEmpty)
+                      Positioned(
+                        left: 13,
+                        top: 13,
+                        child: FilledButton.icon(
+                          onPressed: () =>
+                              _openGoogleMaps(context, spots.first),
+                          icon: const Icon(Icons.map_outlined, size: 18),
+                          label: const Text('Buka Google Maps'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: _forest,
+                          ),
+                        ),
+                      ),
+                    if (spots.isEmpty)
+                      const Center(
+                        child: Text(
+                          'Belum ada spot terverifikasi',
+                          style: TextStyle(
+                            color: _forest,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    Positioned(
+                      right: 13,
+                      bottom: 13,
+                      child: FloatingActionButton.small(
+                        heroTag: 'current-location',
+                        backgroundColor: Colors.white,
+                        foregroundColor: _forest,
+                        onPressed: () =>
+                            _showMessage(context, 'Lokasi Payakumbuh dipilih'),
+                        child: const Icon(Icons.my_location),
+                      ),
+                    ),
+                    Positioned(
+                      left: 13,
+                      right: 70,
+                      bottom: 13,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.location_on, color: _forest, size: 18),
+                            SizedBox(width: 7),
+                            Expanded(
+                              child: Text(
+                                'Payakumbuh & Lima Puluh Kota',
+                                style: TextStyle(
+                                  color: _ink,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            Icon(Icons.tune, color: _muted, size: 18),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-        SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) => _NearbyTile(
-              spot: spots[index],
-              onTap: () => onOpen(spots[index]),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 23, 20, 12),
+            sliver: SliverToBoxAdapter(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Spot populer dekat sini',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  const Text('Lihat peta', style: TextStyle(color: _forest)),
+                ],
+              ),
             ),
-            childCount: spots.length < 4 ? spots.length : 4,
           ),
-        ),
-      ],
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _NearbyTile(
+                spot: spots[index],
+                onTap: () => onOpen(spots[index]),
+              ),
+              childCount: spots.length < 4 ? spots.length : 4,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -3098,295 +3248,303 @@ class _SavedPageState extends State<SavedPage> {
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(18, 18, 14, 0),
-          sliver: SliverToBoxAdapter(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Profil',
-                    style: const TextStyle(
-                      color: _ink,
-                      fontSize: 23,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                IconButton.filledTonal(
-                  tooltip: 'Muat ulang profil',
-                  onPressed: widget.onRefresh,
-                  icon: const Icon(Icons.refresh_rounded),
-                ),
-                IconButton.filledTonal(
-                  tooltip: 'Keluar',
-                  onPressed: widget.onSignOut,
-                  style: IconButton.styleFrom(
-                    foregroundColor: const Color(0xFFB1443C),
-                    backgroundColor: const Color(0xFFFCEBE9),
-                  ),
-                  icon: const Icon(Icons.logout_rounded),
-                ),
-              ],
-            ),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
-          sliver: SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF164B2A), Color(0xFF2E7D4A)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x241B5E20),
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Stack(
+    return LenisScroll(
+      child: CustomScrollView(
+        primary: true,
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 14, 0),
+            sliver: SliverToBoxAdapter(
+              child: Row(
                 children: [
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.07),
-                        shape: BoxShape.circle,
+                  Expanded(
+                    child: Text(
+                      'Profil',
+                      style: const TextStyle(
+                        color: _ink,
+                        fontSize: 23,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 29,
-                            backgroundColor: Colors.white,
-                            child: Text(
-                              widget.profileName.trim().isEmpty
-                                  ? 'P'
-                                  : widget.profileName
-                                        .trim()
-                                        .substring(0, 1)
-                                        .toUpperCase(),
-                              style: const TextStyle(
-                                color: _forest,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
+                  IconButton.filledTonal(
+                    tooltip: 'Muat ulang profil',
+                    onPressed: widget.onRefresh,
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+                  IconButton.filledTonal(
+                    tooltip: 'Keluar',
+                    onPressed: widget.onSignOut,
+                    style: IconButton.styleFrom(
+                      foregroundColor: const Color(0xFFB1443C),
+                      backgroundColor: const Color(0xFFFCEBE9),
+                    ),
+                    icon: const Icon(Icons.logout_rounded),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
+            sliver: SliverToBoxAdapter(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF164B2A), Color(0xFF2E7D4A)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x241B5E20),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.07),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 29,
+                              backgroundColor: Colors.white,
+                              child: Text(
+                                widget.profileName.trim().isEmpty
+                                    ? 'P'
+                                    : widget.profileName
+                                          .trim()
+                                          .substring(0, 1)
+                                          .toUpperCase(),
+                                style: const TextStyle(
+                                  color: _forest,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                             ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.profileName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '@${widget.username}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Color(0xFFD8E9D8),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 11,
+                            vertical: 7,
                           ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  widget.profileName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '@${widget.username}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Color(0xFFD8E9D8),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.18),
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 11,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.18),
+                          child: Text(
+                            switch (widget.role) {
+                              AppRole.admin => 'Administrator',
+                              AppRole.kurator => 'Kurator',
+                              AppRole.penjelajah => 'Penjelajah',
+                            },
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
-                        child: Text(
-                          switch (widget.role) {
-                            AppRole.admin => 'Administrator',
-                            AppRole.kurator => 'Kurator',
-                            AppRole.penjelajah => 'Penjelajah',
-                          },
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
-          sliver: SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 15),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xFFE8EDE6)),
-              ),
-              child: Row(
-                children: [
-                  _Stat(
-                    value: '${widget.savedSpots.length}',
-                    label: 'Spot disimpan',
-                  ),
-                  Container(
-                    width: 1,
-                    height: 34,
-                    color: const Color(0xFFE8EDE6),
-                  ),
-                  _Stat(
-                    value: '${widget.collections.length}',
-                    label: 'Koleksi saya',
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          sliver: SliverToBoxAdapter(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Simpan & koleksi',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
+                      ],
+                    ),
+                  ],
                 ),
-                TextButton.icon(
-                  onPressed: _createCollection,
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('Buat koleksi'),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-        if (widget.role == AppRole.penjelajah)
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
             sliver: SliverToBoxAdapter(
-              child: CuratorApplicationCard(repository: widget.repository),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFE8EDE6)),
+                ),
+                child: Row(
+                  children: [
+                    _Stat(
+                      value: '${widget.savedSpots.length}',
+                      label: 'Spot disimpan',
+                    ),
+                    Container(
+                      width: 1,
+                      height: 34,
+                      color: const Color(0xFFE8EDE6),
+                    ),
+                    _Stat(
+                      value: '${widget.collections.length}',
+                      label: 'Koleksi saya',
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 7, 16, 18),
-          sliver: SliverToBoxAdapter(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            sliver: SliverToBoxAdapter(
               child: Row(
                 children: [
-                  _viewChip('Spot disimpan', 0),
-                  const SizedBox(width: 8),
-                  _viewChip('Koleksi publik', 1),
-                  const SizedBox(width: 8),
-                  _viewChip('Koleksi saya', 2),
+                  Expanded(
+                    child: Text(
+                      'Simpan & koleksi',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _createCollection,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Buat koleksi'),
+                  ),
                 ],
               ),
             ),
           ),
-        ),
-        if (_view == 0)
-          if (widget.savedSpots.isEmpty)
+          if (widget.role == AppRole.penjelajah)
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+              sliver: SliverToBoxAdapter(
+                child: CuratorApplicationCard(repository: widget.repository),
+              ),
+            ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 7, 16, 18),
+            sliver: SliverToBoxAdapter(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _viewChip('Spot disimpan', 0),
+                    const SizedBox(width: 8),
+                    _viewChip('Koleksi publik', 1),
+                    const SizedBox(width: 8),
+                    _viewChip('Koleksi saya', 2),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (_view == 0)
+            if (widget.savedSpots.isEmpty)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Text('Spot tersimpan akan muncul di sini.'),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.72,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) => _SpotCard(
+                      spot: widget.savedSpots[index],
+                      isSaved: true,
+                      onSave: () {},
+                      onTap: () => widget.onOpen(widget.savedSpots[index]),
+                    ),
+                    childCount: widget.savedSpots.length,
+                  ),
+                ),
+              )
+          else if (_view == 1 && widget.publicCollections.isEmpty)
             const SliverFillRemaining(
               hasScrollBody: false,
-              child: Center(child: Text('Spot tersimpan akan muncul di sini.')),
+              child: Center(child: Text('Belum ada koleksi publik.')),
+            )
+          else if (_view == 1)
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              sliver: SliverList.builder(
+                itemCount: widget.publicCollections.length,
+                itemBuilder: (context, index) => _BoardCard(
+                  collection: widget.publicCollections[index],
+                  onTap: () =>
+                      widget.onOpenCollection(widget.publicCollections[index]),
+                ),
+              ),
+            )
+          else if (widget.collections.isEmpty)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Text('Buat koleksi perjalanan pertama Anda.'),
+              ),
             )
           else
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 0.72,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => _SpotCard(
-                    spot: widget.savedSpots[index],
-                    isSaved: true,
-                    onSave: () {},
-                    onTap: () => widget.onOpen(widget.savedSpots[index]),
-                  ),
-                  childCount: widget.savedSpots.length,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              sliver: SliverList.builder(
+                itemCount: widget.collections.length,
+                itemBuilder: (context, index) => _BoardCard(
+                  collection: widget.collections[index],
+                  onTap: () =>
+                      widget.onOpenCollection(widget.collections[index]),
                 ),
               ),
-            )
-        else if (_view == 1 && widget.publicCollections.isEmpty)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(child: Text('Belum ada koleksi publik.')),
-          )
-        else if (_view == 1)
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-            sliver: SliverList.builder(
-              itemCount: widget.publicCollections.length,
-              itemBuilder: (context, index) => _BoardCard(
-                collection: widget.publicCollections[index],
-                onTap: () =>
-                    widget.onOpenCollection(widget.publicCollections[index]),
-              ),
             ),
-          )
-        else if (widget.collections.isEmpty)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(child: Text('Buat koleksi perjalanan pertama Anda.')),
-          )
-        else
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-            sliver: SliverList.builder(
-              itemCount: widget.collections.length,
-              itemBuilder: (context, index) => _BoardCard(
-                collection: widget.collections[index],
-                onTap: () => widget.onOpenCollection(widget.collections[index]),
-              ),
-            ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -4176,280 +4334,289 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
   Widget build(BuildContext context) {
     final spot = widget.spot;
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 320,
-            pinned: true,
-            foregroundColor: Colors.white,
-            backgroundColor: _forest,
-            actions: [
-              if (widget.spot.creatorId ==
-                      Supabase.instance.client.auth.currentUser?.id ||
-                  widget.role == AppRole.admin ||
-                  widget.role == AppRole.kurator)
+      body: LenisScroll(
+        child: CustomScrollView(
+          primary: true,
+          slivers: [
+            SliverAppBar(
+              expandedHeight: 320,
+              pinned: true,
+              foregroundColor: Colors.white,
+              backgroundColor: _forest,
+              actions: [
+                if (widget.spot.creatorId ==
+                        Supabase.instance.client.auth.currentUser?.id ||
+                    widget.role == AppRole.admin ||
+                    widget.role == AppRole.kurator)
+                  IconButton(
+                    tooltip: 'Edit spot',
+                    onPressed: _editSpot,
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
                 IconButton(
-                  tooltip: 'Edit spot',
-                  onPressed: _editSpot,
-                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: 'Laporkan spot',
+                  onPressed: _reportSpot,
+                  icon: const Icon(Icons.flag_outlined),
                 ),
-              IconButton(
-                tooltip: 'Laporkan spot',
-                onPressed: _reportSpot,
-                icon: const Icon(Icons.flag_outlined),
-              ),
-              IconButton(
-                tooltip: 'Bagikan',
-                onPressed: () => _shareSpot(
-                  context,
-                  widget.spot,
-                  repository: widget.repository,
-                ),
-                icon: const Icon(Icons.share_outlined),
-              ),
-              IconButton(
-                tooltip: _isSaved ? 'Hapus dari koleksi' : 'Simpan',
-                onPressed: _saveSpot,
-                icon: Icon(_isSaved ? Icons.bookmark : Icons.bookmark_border),
-              ),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              title: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.58),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: Text(
-                  spot.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                    shadows: [Shadow(color: Colors.black54, blurRadius: 8)],
+                IconButton(
+                  tooltip: 'Bagikan',
+                  onPressed: () => _shareSpot(
+                    context,
+                    widget.spot,
+                    repository: widget.repository,
                   ),
+                  icon: const Icon(Icons.share_outlined),
                 ),
-              ),
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _NetworkPhoto(image: spot.image),
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          Color(0x33000000),
-                          Color(0xCC000000),
-                        ],
-                        begin: Alignment.center,
-                        end: Alignment.bottomCenter,
-                        stops: [0, 0.48, 1],
-                      ),
-                    ),
+                IconButton(
+                  tooltip: _isSaved ? 'Hapus dari koleksi' : 'Simpan',
+                  onPressed: _saveSpot,
+                  icon: Icon(_isSaved ? Icons.bookmark : Icons.bookmark_border),
+                ),
+              ],
+              flexibleSpace: FlexibleSpaceBar(
+                title: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
                   ),
-                  Positioned(
-                    left: 18,
-                    right: 18,
-                    bottom: 72,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _tag(spot.category, const Color(0xFFF7E4C8), _forest),
-                        const SizedBox(height: 9),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.location_on_rounded,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                spot.area,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  shadows: [
-                                    Shadow(color: Colors.black54, blurRadius: 6),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 112),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                _InfoGrid(spot: spot),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: () => _openGoogleMaps(context, spot),
-                  icon: const Icon(Icons.map_outlined),
-                  label: const Text('Buka lokasi di Google Maps'),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    if (widget.role != AppRole.penjelajah) ...[
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _addToCollection,
-                          icon: const Icon(Icons.playlist_add, size: 18),
-                          label: const Text('Koleksi'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _createStory,
-                        icon: const Icon(Icons.auto_stories_outlined, size: 18),
-                        label: const Text('Buat cerita'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                _SectionHeading(
-                  icon: Icons.auto_stories,
-                  title: 'Tentang ${spot.name}',
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(15),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: const Color(0xFFECEFEA)),
-                    borderRadius: BorderRadius.circular(18),
+                    color: Colors.black.withValues(alpha: 0.58),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white24),
                   ),
                   child: Text(
-                    spot.description.isEmpty
-                        ? 'Belum ada ringkasan untuk spot ini.'
-                        : spot.description,
+                    spot.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: _muted,
-                      height: 1.65,
-                      fontSize: 13,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      shadows: [Shadow(color: Colors.black54, blurRadius: 8)],
                     ),
                   ),
                 ),
-                const SizedBox(height: 22),
-                const _SectionHeading(
-                  icon: Icons.tips_and_updates_outlined,
-                  title: 'Etika & Tips Berkunjung',
-                ),
-                const SizedBox(height: 10),
-                const _TipRow(
-                  icon: Icons.hiking,
-                  title: 'Gunakan alas kaki anti-selip',
-                  detail: 'Bebatuan di dekat air terjun dapat licin.',
-                ),
-                const _TipRow(
-                  icon: Icons.volunteer_activism,
-                  title: 'Hormati norma adat setempat',
-                  detail: 'Berbusana sopan dan ramah kepada warga lokal.',
-                ),
-                const _TipRow(
-                  icon: Icons.delete_sweep_outlined,
-                  title: 'Bawa pulang sampah',
-                  detail: 'Jaga kebersihan kawasan geopark.',
-                ),
-                const SizedBox(height: 20),
-                Row(
+                background: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    const Expanded(
-                      child: _SectionHeading(
-                        icon: Icons.chat_bubble_outline,
-                        title: 'Catatan Penjelajah',
+                    _NetworkPhoto(image: spot.image),
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            Color(0x33000000),
+                            Color(0xCC000000),
+                          ],
+                          begin: Alignment.center,
+                          end: Alignment.bottomCenter,
+                          stops: [0, 0.48, 1],
+                        ),
                       ),
                     ),
-                    TextButton.icon(
-                      onPressed: _writeTip,
-                      icon: const Icon(Icons.edit_note, size: 18),
-                      label: const Text('Tulis Tips'),
+                    Positioned(
+                      left: 18,
+                      right: 18,
+                      bottom: 72,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _tag(spot.category, const Color(0xFFF7E4C8), _forest),
+                          const SizedBox(height: 9),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.location_on_rounded,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  spot.area,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black54,
+                                        blurRadius: 6,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                FutureBuilder<List<ExplorerTip>>(
-                  future: _tips,
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return Text(
-                        'Tips gagal dimuat: ${snapshot.error}',
-                        style: const TextStyle(color: Color(0xFFB42318)),
-                      );
-                    }
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final tips = snapshot.data ?? [];
-                    if (tips.isEmpty) {
-                      return const Text(
-                        'Belum ada tips warga. Bagikan pengalaman pertama Anda.',
-                        style: TextStyle(color: _muted, fontSize: 12),
-                      );
-                    }
-                    return Column(
-                      children: tips
-                          .map(
-                            (tip) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _ReviewCard(
-                                tip: tip,
-                                onHelpful: () async {
-                                  try {
-                                    await widget.repository.toggleTipVote(
-                                      tip.id,
-                                    );
-                                    if (mounted) {
-                                      setState(() {
-                                        _tips = widget.repository.getTips(
-                                          widget.spot.id,
-                                        );
-                                      });
-                                    }
-                                  } on Exception catch (error) {
-                                    if (context.mounted) {
-                                      _showMessage(
-                                        context,
-                                        'Vote gagal disimpan: $error',
-                                      );
-                                    }
-                                  }
-                                },
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    );
-                  },
-                ),
-              ]),
+              ),
             ),
-          ),
-        ],
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 112),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  _InfoGrid(spot: spot),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: () => _openGoogleMaps(context, spot),
+                    icon: const Icon(Icons.map_outlined),
+                    label: const Text('Buka lokasi di Google Maps'),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      if (widget.role != AppRole.penjelajah) ...[
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _addToCollection,
+                            icon: const Icon(Icons.playlist_add, size: 18),
+                            label: const Text('Koleksi'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _createStory,
+                          icon: const Icon(
+                            Icons.auto_stories_outlined,
+                            size: 18,
+                          ),
+                          label: const Text('Buat cerita'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _SectionHeading(
+                    icon: Icons.auto_stories,
+                    title: 'Tentang ${spot.name}',
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: const Color(0xFFECEFEA)),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Text(
+                      spot.description.isEmpty
+                          ? 'Belum ada ringkasan untuk spot ini.'
+                          : spot.description,
+                      style: const TextStyle(
+                        color: _muted,
+                        height: 1.65,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  const _SectionHeading(
+                    icon: Icons.tips_and_updates_outlined,
+                    title: 'Etika & Tips Berkunjung',
+                  ),
+                  const SizedBox(height: 10),
+                  const _TipRow(
+                    icon: Icons.hiking,
+                    title: 'Gunakan alas kaki anti-selip',
+                    detail: 'Bebatuan di dekat air terjun dapat licin.',
+                  ),
+                  const _TipRow(
+                    icon: Icons.volunteer_activism,
+                    title: 'Hormati norma adat setempat',
+                    detail: 'Berbusana sopan dan ramah kepada warga lokal.',
+                  ),
+                  const _TipRow(
+                    icon: Icons.delete_sweep_outlined,
+                    title: 'Bawa pulang sampah',
+                    detail: 'Jaga kebersihan kawasan geopark.',
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: _SectionHeading(
+                          icon: Icons.chat_bubble_outline,
+                          title: 'Catatan Penjelajah',
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _writeTip,
+                        icon: const Icon(Icons.edit_note, size: 18),
+                        label: const Text('Tulis Tips'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  FutureBuilder<List<ExplorerTip>>(
+                    future: _tips,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return Text(
+                          'Tips gagal dimuat: ${snapshot.error}',
+                          style: const TextStyle(color: Color(0xFFB42318)),
+                        );
+                      }
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      final tips = snapshot.data ?? [];
+                      if (tips.isEmpty) {
+                        return const Text(
+                          'Belum ada tips warga. Bagikan pengalaman pertama Anda.',
+                          style: TextStyle(color: _muted, fontSize: 12),
+                        );
+                      }
+                      return Column(
+                        children: tips
+                            .map(
+                              (tip) => Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: _ReviewCard(
+                                  tip: tip,
+                                  onHelpful: () async {
+                                    try {
+                                      await widget.repository.toggleTipVote(
+                                        tip.id,
+                                      );
+                                      if (mounted) {
+                                        setState(() {
+                                          _tips = widget.repository.getTips(
+                                            widget.spot.id,
+                                          );
+                                        });
+                                      }
+                                    } on Exception catch (error) {
+                                      if (context.mounted) {
+                                        _showMessage(
+                                          context,
+                                          'Vote gagal disimpan: $error',
+                                        );
+                                      }
+                                    }
+                                  },
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      );
+                    },
+                  ),
+                ]),
+              ),
+            ),
+          ],
+        ),
       ),
       bottomNavigationBar: SafeArea(
         child: Container(
@@ -4555,7 +4722,7 @@ class _InfoItem extends StatelessWidget {
           height: 36,
           decoration: BoxDecoration(
             color: const Color(0xFFE8F1E8),
-          borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(icon, size: 18, color: _forest),
         ),
@@ -4599,10 +4766,12 @@ class _SectionHeading extends StatelessWidget {
   const _SectionHeading({
     required this.icon,
     required this.title,
+    this.trailing,
   });
 
   final IconData icon;
   final String title;
+  final String? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -4620,6 +4789,8 @@ class _SectionHeading extends StatelessWidget {
             ),
           ),
         ),
+        if (trailing != null)
+          Text(trailing!, style: const TextStyle(color: _muted, fontSize: 11)),
       ],
     );
   }
@@ -4638,36 +4809,38 @@ class _TipRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(11),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF4EB),
-        borderRadius: BorderRadius.circular(13),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: _forest, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 11,
+    return MotionCard(
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFF4EB),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: _forest, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                    ),
                   ),
-                ),
-                Text(
-                  detail,
-                  style: const TextStyle(color: _muted, fontSize: 10),
-                ),
-              ],
+                  Text(
+                    detail,
+                    style: const TextStyle(color: _muted, fontSize: 10),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -4681,80 +4854,88 @@ class _ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFECEFEA)),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const CircleAvatar(
-                radius: 17,
-                backgroundColor: Color(0xFFE8F1E8),
-                child: Icon(Icons.person, color: _forest, size: 19),
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      tip.authorName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
+    return MotionCard(
+      child: Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFECEFEA)),
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const CircleAvatar(
+                  radius: 17,
+                  backgroundColor: Color(0xFFE8F1E8),
+                  child: Icon(Icons.person, color: _forest, size: 19),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tip.authorName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
-                    Text(
-                      tip.createdAt.toLocal().toString().split(' ').first,
-                      style: const TextStyle(color: _muted, fontSize: 10),
-                    ),
-                  ],
+                      Text(
+                        tip.createdAt.toLocal().toString().split(' ').first,
+                        style: const TextStyle(color: _muted, fontSize: 10),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(Icons.star, color: _clay, size: 15),
-              Text(
-                ' ${tip.rating.toStringAsFixed(1)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11,
+                const Icon(Icons.star, color: _clay, size: 15),
+                Text(
+                  ' ${tip.rating.toStringAsFixed(1)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(tip.content, style: const TextStyle(fontSize: 12, height: 1.5)),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                onPressed: () async => onHelpful(),
-                icon: const Icon(
-                  Icons.thumb_up_outlined,
-                  color: _muted,
-                  size: 15,
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              tip.content,
+              style: const TextStyle(fontSize: 12, height: 1.5),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 24,
+                    minHeight: 24,
+                  ),
+                  onPressed: () async => onHelpful(),
+                  icon: const Icon(
+                    Icons.thumb_up_outlined,
+                    color: _muted,
+                    size: 15,
+                  ),
                 ),
-              ),
-              SizedBox(width: 5),
-              Text(
-                'Membantu (${tip.voteCount})',
-                style: TextStyle(color: _muted, fontSize: 10),
-              ),
-              SizedBox(width: 15),
-              Icon(Icons.reply, color: _muted, size: 15),
-              SizedBox(width: 5),
-              Text('Tanggapi', style: TextStyle(color: _muted, fontSize: 10)),
-            ],
-          ),
-        ],
+                SizedBox(width: 5),
+                Text(
+                  'Membantu (${tip.voteCount})',
+                  style: TextStyle(color: _muted, fontSize: 10),
+                ),
+                SizedBox(width: 15),
+                Icon(Icons.reply, color: _muted, size: 15),
+                SizedBox(width: 5),
+                Text('Tanggapi', style: TextStyle(color: _muted, fontSize: 10)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -4803,41 +4984,43 @@ class _BoardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFECEFEA)),
-      ),
-      child: ListTile(
-        onTap: onTap,
-        contentPadding: const EdgeInsets.all(9),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: SizedBox(
-            width: 58,
-            height: 58,
-            child: _NetworkPhoto(image: collection.coverImage),
+    return MotionCard(
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFECEFEA)),
+        ),
+        child: ListTile(
+          onTap: onTap,
+          contentPadding: const EdgeInsets.all(9),
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: 58,
+              height: 58,
+              child: _NetworkPhoto(image: collection.coverImage),
+            ),
           ),
-        ),
-        title: Text(
-          collection.title,
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 3),
-          child: Text(
-            '${collection.description.isEmpty ? 'Koleksi perjalanan' : collection.description}\n'
-            '${collection.spotCount} spot · '
-            '${collection.duration.isEmpty ? '' : '${collection.duration} · '}${collection.isPublic ? 'Publik' : 'Pribadi'}',
-            style: const TextStyle(color: _muted, fontSize: 10, height: 1.5),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+          title: Text(
+            collection.title,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
           ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Text(
+              '${collection.description.isEmpty ? 'Koleksi perjalanan' : collection.description}\n'
+              '${collection.spotCount} spot · '
+              '${collection.duration.isEmpty ? '' : '${collection.duration} · '}${collection.isPublic ? 'Publik' : 'Pribadi'}',
+              style: const TextStyle(color: _muted, fontSize: 10, height: 1.5),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          trailing: const Icon(Icons.chevron_right, color: _muted),
+          isThreeLine: true,
         ),
-        trailing: const Icon(Icons.chevron_right, color: _muted),
-        isThreeLine: true,
       ),
     );
   }

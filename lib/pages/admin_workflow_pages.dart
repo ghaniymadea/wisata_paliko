@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../data/explorer_repository.dart';
 import '../data/models.dart';
+import '../widgets/motion_card.dart';
 
 class _AdminRefreshState extends StatelessWidget {
   const _AdminRefreshState({required this.onRefresh, required this.child});
@@ -172,6 +173,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 ),
                 const SizedBox(height: 18),
                 Wrap(
+                  alignment: WrapAlignment.center,
                   spacing: gap,
                   runSpacing: gap,
                   children: [
@@ -366,56 +368,59 @@ class _StatCard extends StatelessWidget {
   final Color tint;
 
   @override
-  Widget build(BuildContext context) => Container(
-    constraints: const BoxConstraints(minHeight: 132),
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: const Color(0xFFE8EDE6)),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x080F2414),
-          blurRadius: 12,
-          offset: Offset(0, 4),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: tint,
-            borderRadius: BorderRadius.circular(12),
+  Widget build(BuildContext context) => MotionCard(
+    child: Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 132),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8EDE6)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x060F2414),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
-          child: Icon(icon, color: color, size: 19),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          '$value',
-          style: TextStyle(
-            color: color,
-            fontSize: 24,
-            height: 1,
-            fontWeight: FontWeight.w800,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: tint,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 19),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: Color(0xFF66736A),
-            fontSize: 11,
-            height: 1.25,
-            fontWeight: FontWeight.w600,
+          const SizedBox(height: 10),
+          Text(
+            '$value',
+            style: TextStyle(
+              color: color,
+              fontSize: 24,
+              height: 1,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-        ),
-      ],
+          const SizedBox(height: 6),
+          Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF66736A),
+              fontSize: 11,
+              height: 1.25,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -1074,79 +1079,81 @@ class _NotificationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final read = notification['sudah_dibaca'] == true;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: read ? Colors.white : const Color(0xFFF3F8F1),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: read ? const Color(0xFFE8EDE6) : const Color(0xFFD9E9D7),
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x080F2414),
-            blurRadius: 12,
-            offset: Offset(0, 4),
+    return MotionCard(
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: read ? Colors.white : const Color(0xFFF3F8F1),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: read ? const Color(0xFFE8EDE6) : const Color(0xFFD9E9D7),
           ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: read ? const Color(0xFFF0F3ED) : const Color(0xFFE1F0E1),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              read
-                  ? Icons.notifications_none_rounded
-                  : Icons.notifications_active_rounded,
-              color: const Color(0xFF1B5E20),
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  jsonString(notification['judul'], 'Notifikasi'),
-                  style: TextStyle(
-                    color: const Color(0xFF243042),
-                    fontSize: 14,
-                    height: 1.3,
-                    fontWeight: read ? FontWeight.w600 : FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  jsonString(notification['isi']),
-                  style: const TextStyle(
-                    color: Color(0xFF66736A),
-                    fontSize: 12,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (!read) ...[
-            const SizedBox(width: 8),
-            Container(
-              width: 8,
-              height: 8,
-              margin: const EdgeInsets.only(top: 5),
-              decoration: const BoxDecoration(
-                color: Color(0xFF2E7D32),
-                shape: BoxShape.circle,
-              ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x080F2414),
+              blurRadius: 12,
+              offset: Offset(0, 4),
             ),
           ],
-        ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: read ? const Color(0xFFF0F3ED) : const Color(0xFFE1F0E1),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                read
+                    ? Icons.notifications_none_rounded
+                    : Icons.notifications_active_rounded,
+                color: const Color(0xFF1B5E20),
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    jsonString(notification['judul'], 'Notifikasi'),
+                    style: TextStyle(
+                      color: const Color(0xFF243042),
+                      fontSize: 14,
+                      height: 1.3,
+                      fontWeight: read ? FontWeight.w600 : FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    jsonString(notification['isi']),
+                    style: const TextStyle(
+                      color: Color(0xFF66736A),
+                      fontSize: 12,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!read) ...[
+              const SizedBox(width: 8),
+              Container(
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.only(top: 5),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF2E7D32),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
