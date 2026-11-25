@@ -26,4 +26,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/luak_explorer_logo.jpg
-    - assets/luak_explorer_icon.png
+    - assets/luak_explorer_icon.jpg

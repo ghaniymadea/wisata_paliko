@@ -2,7 +2,28 @@ import 'package:material_ui/material_ui.dart';
 
 import '../data/explorer_repository.dart';
 import '../data/models.dart';
-import 'admin_workflow_pages.dart';
+import 'admin_workflow_pages.dart' hide RefreshIndicator;
+
+class _RoleRefreshState extends StatelessWidget {
+  const _RoleRefreshState({required this.onRefresh, required this.child});
+
+  final Future<void> Function() onRefresh;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => RefreshIndicator(
+    onRefresh: onRefresh,
+    child: ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.72,
+          child: Center(child: child),
+        ),
+      ],
+    ),
+  );
+}
 
 class CuratorVerificationPage extends StatefulWidget {
   const CuratorVerificationPage({
@@ -27,11 +48,13 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
   @override
   void initState() {
     super.initState();
-    _reload();
+    _pending = widget.repository.getPendingSpots();
   }
 
-  void _reload() {
-    _pending = widget.repository.getPendingSpots();
+  Future<void> _reload() async {
+    final request = widget.repository.getPendingSpots();
+    setState(() => _pending = request);
+    await request;
   }
 
   Future<void> _verify(Spot spot, int statusId) async {
@@ -70,7 +93,7 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
         statusId: statusId,
         note: noteController.text.trim(),
       );
-      setState(_reload);
+      await _reload();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -99,7 +122,7 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
               title: const Text('Verifikasi Spot'),
               actions: [
                 IconButton(
-                  onPressed: () => setState(_reload),
+                  onPressed: _reload,
                   icon: const Icon(Icons.refresh),
                 ),
               ],
@@ -109,15 +132,24 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
         future: _pending,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return _RoleRefreshState(
+              onRefresh: _reload,
+              child: const CircularProgressIndicator(),
+            );
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Gagal memuat: ${snapshot.error}'));
+            return _RoleRefreshState(
+              onRefresh: _reload,
+              child: Text('Gagal memuat: ${snapshot.error}'),
+            );
           }
           final spots = snapshot.data ?? const <Spot>[];
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-            children: [
+          return RefreshIndicator(
+            onRefresh: _reload,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+              children: [
               if (!widget.showAppBar) ...[
                 Row(
                   children: [
@@ -145,7 +177,7 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
                     ),
                     IconButton(
                       tooltip: 'Muat ulang',
-                      onPressed: () => setState(_reload),
+                    onPressed: _reload,
                       icon: const Icon(Icons.refresh_rounded),
                     ),
                   ],
@@ -320,7 +352,8 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
                   ),
                   const SizedBox(height: 10),
                 ],
-            ],
+              ],
+            ),
           );
         },
       ),
@@ -463,7 +496,11 @@ class _UserRoleTabState extends State<_UserRoleTab> {
     roles: await widget.repository.getRoles(),
   );
 
-  void _reload() => setState(() => _usersAndRoles = _load());
+  Future<void> _reload() async {
+    final request = _load();
+    setState(() => _usersAndRoles = request);
+    await request;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -473,16 +510,79 @@ class _UserRoleTabState extends State<_UserRoleTab> {
       future: _usersAndRoles,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(child: Text('Gagal memuat: ${snapshot.error}'));
+          return _RoleRefreshState(
+            onRefresh: _reload,
+            child: Text('Gagal memuat: ${snapshot.error}'),
+          );
         }
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return _RoleRefreshState(
+            onRefresh: _reload,
+            child: const CircularProgressIndicator(),
+          );
         }
         final users = snapshot.data!.users;
         final roles = snapshot.data!.roles;
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
+        return RefreshIndicator(
+          onRefresh: _reload,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+            children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(2, 0, 2, 14),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Manajemen pengguna',
+                          style: TextStyle(
+                            color: Color(0xFF243042),
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Atur akses dan peran akun.',
+                          style: TextStyle(
+                            color: Color(0xFF718096),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F3E8),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${users.length} akun',
+                      style: const TextStyle(
+                        color: Color(0xFF1B5E20),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton.filledTonal(
+                    tooltip: 'Muat ulang pengguna',
+                    onPressed: _reload,
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+                ],
+              ),
+            ),
             ...users.map((user) {
               final roleId = jsonInt(user['id_role']);
               final roleItems = roles
@@ -497,11 +597,46 @@ class _UserRoleTabState extends State<_UserRoleTab> {
                   })
                   .whereType<DropdownMenuItem<int>>()
                   .toList();
-              return ListTile(
-                title: Text(jsonString(user['nama'])),
-                subtitle: Text('@${jsonString(user['username'])}'),
+              final name = jsonString(user['nama'], 'Pengguna');
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                  tileColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    side: const BorderSide(color: Color(0xFFE8EDE6)),
+                  ),
+                  leading: CircleAvatar(
+                    radius: 21,
+                    backgroundColor: const Color(0xFFE8F3E8),
+                    child: Text(
+                      name.trim().isEmpty
+                          ? 'P'
+                          : name.trim().substring(0, 1).toUpperCase(),
+                      style: const TextStyle(
+                        color: Color(0xFF1B5E20),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  titleTextStyle: const TextStyle(
+                    color: Color(0xFF243042),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  subtitleTextStyle: const TextStyle(
+                    color: Color(0xFF718096),
+                    fontSize: 11,
+                  ),
+                  title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(
+                    '@${jsonString(user['username'])}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 trailing: Container(
-                  width: 164,
+                  width: 132,
                   height: 42,
                   padding: const EdgeInsets.only(left: 12, right: 6),
                   decoration: BoxDecoration(
@@ -580,7 +715,7 @@ class _UserRoleTabState extends State<_UserRoleTab> {
                             userId: jsonString(user['id']),
                             roleId: value,
                           );
-                          _reload();
+                          await _reload();
                         } on Exception catch (error) {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -594,9 +729,11 @@ class _UserRoleTabState extends State<_UserRoleTab> {
                     ),
                   ),
                 ),
+                ),
               );
             }),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -652,7 +789,11 @@ class _MasterTabState extends State<_MasterTab> {
     return (categories: categories, districts: districts, cities: cities);
   }
 
-  void _reload() => setState(() => _masterData = _loadMasterData());
+  Future<void> _reload() async {
+    final request = _loadMasterData();
+    setState(() => _masterData = request);
+    await request;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -666,17 +807,24 @@ class _MasterTabState extends State<_MasterTab> {
       future: _masterData,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(
+          return _RoleRefreshState(
+            onRefresh: _reload,
             child: Text('Gagal memuat data master: ${snapshot.error}'),
           );
         }
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return _RoleRefreshState(
+            onRefresh: _reload,
+            child: const CircularProgressIndicator(),
+          );
         }
         final data = snapshot.data!;
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-          children: [
+        return RefreshIndicator(
+          onRefresh: _reload,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            children: [
             const Text(
               'Data master',
               style: TextStyle(
@@ -889,7 +1037,8 @@ class _MasterTabState extends State<_MasterTab> {
                 ),
               ),
             ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -1056,6 +1205,12 @@ class _ActivityTabState extends State<_ActivityTab> {
     _activity = widget.repository.getActivity();
   }
 
+  Future<void> _reload() async {
+    final request = widget.repository.getActivity();
+    setState(() => _activity = request);
+    await request;
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Map<String, dynamic>>>(
@@ -1063,29 +1218,168 @@ class _ActivityTabState extends State<_ActivityTab> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return snapshot.hasError
-              ? Center(child: Text('Gagal memuat: ${snapshot.error}'))
-              : const Center(child: CircularProgressIndicator());
+              ? _RoleRefreshState(
+                  onRefresh: _reload,
+                  child: Text('Gagal memuat: ${snapshot.error}'),
+                )
+              : _RoleRefreshState(
+                  onRefresh: _reload,
+                  child: const CircularProgressIndicator(),
+                );
         }
         final rows = snapshot.data!;
         if (rows.isEmpty) {
-          return const Center(child: Text('Belum ada aktivitas.'));
+          return RefreshIndicator(
+            onRefresh: _reload,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(
+                  height: MediaQuery.sizeOf(context).height * 0.65,
+                  child: const Center(child: Text('Belum ada aktivitas.')),
+                ),
+              ],
+            ),
+          );
         }
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: rows.length,
-          separatorBuilder: (_, _) => const Divider(),
-          itemBuilder: (context, index) {
-            final row = rows[index];
-            final user = asJsonMap(row['users']);
-            return ListTile(
-              leading: const Icon(Icons.history),
-              title: Text(jsonString(row['aktivitas'])),
-              subtitle: Text(jsonString(user?['nama'], 'Pengguna')),
-              trailing: Text(jsonString(row['waktu']).substring(0, 10)),
-            );
-          },
+        return RefreshIndicator(
+          onRefresh: _reload,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 0, 4, 14),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Aktivitas terbaru',
+                      style: TextStyle(
+                        color: Color(0xFF243042),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F3E8),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${rows.length} aktivitas',
+                      style: const TextStyle(
+                        color: Color(0xFF1B5E20),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            for (final row in rows) ...[
+              _ActivityCard(row: row),
+              const SizedBox(height: 10),
+            ],
+            ],
+          ),
         );
       },
+    );
+  }
+}
+
+class _ActivityCard extends StatelessWidget {
+  const _ActivityCard({required this.row});
+
+  final Map<String, dynamic> row;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = asJsonMap(row['users']);
+    final activity = jsonString(row['aktivitas'], 'Aktivitas');
+    final rawDate = jsonString(row['waktu']);
+    final date = rawDate.length >= 10 ? rawDate.substring(0, 10) : '—';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8EDE6)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x080F2414),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEAF3EC),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.history_rounded,
+              color: Color(0xFF1B5E20),
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  activity,
+                  style: const TextStyle(
+                    color: Color(0xFF243042),
+                    fontSize: 14,
+                    height: 1.3,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  jsonString(user?['nama'], 'Pengguna'),
+                  style: const TextStyle(
+                    color: Color(0xFF718096),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF4F6F2),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              date,
+              style: const TextStyle(
+                color: Color(0xFF66736A),
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

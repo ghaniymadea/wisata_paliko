@@ -12,7 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'auth/auth_gate.dart';
 import 'data/explorer_repository.dart';
 import 'data/models.dart';
-import 'pages/admin_workflow_pages.dart';
+import 'pages/admin_workflow_pages.dart' hide RefreshIndicator;
 import 'pages/role_pages.dart';
 
 Future<void> main() async {
@@ -615,9 +615,12 @@ class ExplorerShell extends StatefulWidget {
   State<ExplorerShell> createState() => _ExplorerShellState();
 }
 
-class _ExplorerShellState extends State<ExplorerShell> {
+class _ExplorerShellState extends State<ExplorerShell>
+    with SingleTickerProviderStateMixin {
   final _repository = ExplorerRepository(Supabase.instance.client);
   Timer? _railHoverTimer;
+  late final AnimationController _tabTransitionController;
+  bool _tabTransitioning = false;
   int _tab = 0;
   bool _railExtended = false;
   AppRole _role = AppRole.penjelajah;
@@ -642,9 +645,33 @@ class _ExplorerShellState extends State<ExplorerShell> {
     });
   }
 
+  Future<void> _selectTab(int index) async {
+    if (index == _tab || index < 0 || _tabTransitioning) return;
+    _tabTransitioning = true;
+    try {
+      await _tabTransitionController.animateTo(
+        0.5,
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeInOutCubic,
+      );
+      if (!mounted) return;
+      setState(() => _tab = index);
+      await _tabTransitionController.animateBack(
+        0,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeInOutCubic,
+      );
+    } on TickerCanceled {
+      // Navigasi dapat berakhir ketika widget ini sedang dihapus.
+    } finally {
+      _tabTransitioning = false;
+    }
+  }
+
   @override
   void dispose() {
     _railHoverTimer?.cancel();
+    _tabTransitionController.dispose();
     super.dispose();
   }
 
@@ -674,6 +701,10 @@ class _ExplorerShellState extends State<ExplorerShell> {
   @override
   void initState() {
     super.initState();
+    _tabTransitionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
     _loadData();
   }
 
@@ -800,38 +831,51 @@ class _ExplorerShellState extends State<ExplorerShell> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
+          scrollable: true,
+          constraints: const BoxConstraints(maxWidth: 520),
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 20,
             vertical: 24,
           ),
-          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 4),
-          contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
-          actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 6),
+          contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
           title: const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Tambah cerita'),
-              SizedBox(height: 5),
+              Text(
+                'Tambah cerita',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+              ),
+              SizedBox(height: 6),
               Text(
                 'Bagikan momen terbaikmu selama 24 jam.',
                 style: TextStyle(
                   color: _muted,
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: FontWeight.w400,
                 ),
               ),
             ],
           ),
           content: SizedBox(
-            width: 430,
+            width: 480,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<Spot>(
                   value: selectedSpot,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Pilih spot',
-                    prefixIcon: Icon(Icons.location_on_outlined),
+                    prefixIcon: const Icon(Icons.location_on_outlined),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 16,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                   items: _spots
                       .map(
@@ -848,18 +892,31 @@ class _ExplorerShellState extends State<ExplorerShell> {
                     if (spot != null) setDialogState(() => selectedSpot = spot);
                   },
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: title,
                   maxLength: 80,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Keterangan cerita',
-                    prefixIcon: Icon(Icons.edit_note_outlined),
+                    prefixIcon: const Icon(Icons.edit_note_outlined),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 16,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    counterStyle: const TextStyle(color: _muted, fontSize: 12),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 46),
+                    minimumSize: const Size(double.infinity, 52),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                   onPressed: () async {
                     final files = await FilePicker.pickFiles(
@@ -875,7 +932,13 @@ class _ExplorerShellState extends State<ExplorerShell> {
                     }
                   },
                   icon: const Icon(Icons.add_photo_alternate_outlined),
-                  label: Text(imageName ?? 'Pilih foto dari perangkat'),
+                  label: Flexible(
+                    child: Text(
+                      imageName ?? 'Pilih foto dari perangkat',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
                 if (imageBytes != null) ...[
                   const SizedBox(height: 12),
@@ -898,7 +961,7 @@ class _ExplorerShellState extends State<ExplorerShell> {
                   ),
                   decoration: BoxDecoration(
                     color: _forest.withValues(alpha: 0.07),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: const Row(
                     children: [
@@ -923,7 +986,7 @@ class _ExplorerShellState extends State<ExplorerShell> {
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                minimumSize: const Size(0, 46),
+                minimumSize: const Size(0, 48),
                 padding: const EdgeInsets.symmetric(horizontal: 20),
               ),
               onPressed: imageBytes == null
@@ -1125,9 +1188,9 @@ class _ExplorerShellState extends State<ExplorerShell> {
         label: 'Peta Spot',
       ),
       const NavigationDestination(
-        icon: Icon(Icons.bookmark_border_rounded),
-        selectedIcon: Icon(Icons.bookmark_rounded),
-        label: 'Tersimpan',
+        icon: Icon(Icons.person_outline_rounded),
+        selectedIcon: Icon(Icons.person_rounded),
+        label: 'Profil',
       ),
       if (_role == AppRole.admin)
         const NavigationDestination(
@@ -1140,20 +1203,40 @@ class _ExplorerShellState extends State<ExplorerShell> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 900;
-        final content = Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1280),
-            child: IndexedStack(index: _tab, children: pages),
+        final content = AnimatedBuilder(
+          animation: _tabTransitionController,
+          builder: (context, child) {
+            final value = _tabTransitionController.value;
+            final progress = value <= 0.5 ? value * 2 : (1 - value) * 2;
+            return Opacity(
+              opacity: 1 - progress * 0.1,
+              child: Transform.translate(
+                offset: Offset(0, -7 * progress),
+                child: Transform.scale(
+                  scale: 1 - progress * 0.008,
+                  child: child,
+                ),
+              ),
+            );
+          },
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1280),
+              child: IndexedStack(index: _tab, children: pages),
+            ),
           ),
         );
-        final mobileContent = RefreshIndicator.adaptive(
-          onRefresh: _loadData,
-          color: _forest,
-          backgroundColor: Colors.white,
-          displacement: 42,
-          edgeOffset: 8,
-          child: content,
-        );
+        final adminTabHasOwnRefresh = _role == AppRole.admin && _tab == 4;
+        final mobileContent = adminTabHasOwnRefresh
+            ? content
+            : RefreshIndicator(
+                onRefresh: _loadData,
+                color: _forest,
+                backgroundColor: Colors.white,
+                displacement: 42,
+                edgeOffset: 8,
+                child: content,
+              );
         return Scaffold(
           body: SafeArea(
             bottom: !wide,
@@ -1187,8 +1270,7 @@ class _ExplorerShellState extends State<ExplorerShell> {
                             ),
                             child: NavigationRail(
                               selectedIndex: _tab,
-                              onDestinationSelected: (index) =>
-                                  setState(() => _tab = index),
+                              onDestinationSelected: _selectTab,
                               extended: _railExtended,
                               labelType: NavigationRailLabelType.none,
                               backgroundColor: Colors.transparent,
@@ -1235,8 +1317,7 @@ class _ExplorerShellState extends State<ExplorerShell> {
                   selectedIndex: _tab,
                   backgroundColor: Colors.white,
                   indicatorColor: const Color(0xFFE5F1E5),
-                  onDestinationSelected: (index) =>
-                      setState(() => _tab = index),
+                  onDestinationSelected: _selectTab,
                   destinations: destinations,
                 ),
         );
@@ -3020,88 +3101,150 @@ class _SavedPageState extends State<SavedPage> {
     return CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 12, 0),
+          padding: const EdgeInsets.fromLTRB(18, 18, 14, 0),
           sliver: SliverToBoxAdapter(
             child: Row(
               children: [
                 Expanded(
                   child: Text(
-                    'Profil penjelajah',
-                    style: Theme.of(context).textTheme.headlineSmall,
+                    'Profil',
+                    style: const TextStyle(
+                      color: _ink,
+                      fontSize: 23,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-                IconButton(
-                  tooltip: 'Muat ulang',
+                IconButton.filledTonal(
+                  tooltip: 'Muat ulang profil',
                   onPressed: widget.onRefresh,
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(Icons.refresh_rounded),
                 ),
-                IconButton(
+                IconButton.filledTonal(
                   tooltip: 'Keluar',
                   onPressed: widget.onSignOut,
-                  icon: const Icon(Icons.logout),
+                  style: IconButton.styleFrom(
+                    foregroundColor: const Color(0xFFB1443C),
+                    backgroundColor: const Color(0xFFFCEBE9),
+                  ),
+                  icon: const Icon(Icons.logout_rounded),
                 ),
               ],
             ),
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
           sliver: SliverToBoxAdapter(
             child: Container(
-              padding: const EdgeInsets.all(17),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(21),
-                border: Border.all(color: const Color(0xFFECEFEA)),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF164B2A), Color(0xFF2E7D4A)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x241B5E20),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
+                  ),
+                ],
               ),
-              child: Column(
+              child: Stack(
                 children: [
-                  Row(
-                    children: [
-                      const CircleAvatar(
-                        radius: 30,
-                        backgroundColor: Color(0xFFE8F1E8),
-                        child: Icon(Icons.person, size: 32, color: _forest),
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.07),
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(width: 13),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.profileName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 29,
+                            backgroundColor: Colors.white,
+                            child: Text(
+                              widget.profileName.trim().isEmpty
+                                  ? 'P'
+                                  : widget.profileName
+                                        .trim()
+                                        .substring(0, 1)
+                                        .toUpperCase(),
                               style: const TextStyle(
-                                fontSize: 16,
+                                color: _forest,
+                                fontSize: 22,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                            const SizedBox(height: 3),
-                            Text(
-                              '@${widget.username}',
-                              style: const TextStyle(
-                                color: _muted,
-                                fontSize: 12,
-                              ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.profileName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '@${widget.username}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFFD8E9D8),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.18),
+                          ),
+                        ),
+                        child: Text(
+                          switch (widget.role) {
+                            AppRole.admin => 'Administrator',
+                            AppRole.kurator => 'Kurator',
+                            AppRole.penjelajah => 'Penjelajah',
+                          },
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      _Stat(
-                        value: '${widget.savedSpots.length}',
-                        label: 'Spot Disimpan',
-                      ),
-                      _Stat(
-                        value: '${widget.collections.length}',
-                        label: 'Koleksi',
-                      ),
-                      const _Stat(value: '—', label: 'Ulasan Dibagi'),
                     ],
                   ),
                 ],
@@ -3110,20 +3253,50 @@ class _SavedPageState extends State<SavedPage> {
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+          sliver: SliverToBoxAdapter(
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE8EDE6)),
+              ),
+              child: Row(
+                children: [
+                  _Stat(
+                    value: '${widget.savedSpots.length}',
+                    label: 'Spot disimpan',
+                  ),
+                  Container(
+                    width: 1,
+                    height: 34,
+                    color: const Color(0xFFE8EDE6),
+                  ),
+                  _Stat(
+                    value: '${widget.collections.length}',
+                    label: 'Koleksi saya',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
           sliver: SliverToBoxAdapter(
             child: Row(
               children: [
                 Expanded(
                   child: Text(
-                    'Koleksi (Boards)',
+                    'Simpan & koleksi',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
                 TextButton.icon(
                   onPressed: _createCollection,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Buat'),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Buat koleksi'),
                 ),
               ],
             ),
@@ -3488,7 +3661,10 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
       final collections = await widget.repository.getMyCollections();
       if (!mounted) return;
       if (collections.isEmpty) {
-        _showMessage(context, 'Buat koleksi terlebih dahulu di tab Tersimpan.');
+        _showMessage(
+          context,
+          'Buat koleksi terlebih dahulu dari halaman Profil.',
+        );
         return;
       }
 
@@ -4003,7 +4179,7 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 290,
+            expandedHeight: 320,
             pinned: true,
             foregroundColor: Colors.white,
             backgroundColor: _forest,
@@ -4038,12 +4214,26 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(
-              title: const Text(
-                'Detail Spot Wisata',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  shadows: [Shadow(color: Colors.black54, blurRadius: 8)],
+              title: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.58),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Text(
+                  spot.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    shadows: [Shadow(color: Colors.black54, blurRadius: 8)],
+                  ),
                 ),
               ),
               background: Stack(
@@ -4053,19 +4243,53 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
                   const DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.transparent, Color(0xAA000000)],
+                        colors: [
+                          Colors.transparent,
+                          Color(0x33000000),
+                          Color(0xCC000000),
+                        ],
                         begin: Alignment.center,
                         end: Alignment.bottomCenter,
+                        stops: [0, 0.48, 1],
                       ),
                     ),
                   ),
                   Positioned(
                     left: 18,
-                    bottom: 62,
-                    child: _tag(
-                      'TRENDING DI LUAK 50',
-                      const Color(0xFFF7E4C8),
-                      _forest,
+                    right: 18,
+                    bottom: 72,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _tag(spot.category, const Color(0xFFF7E4C8), _forest),
+                        const SizedBox(height: 9),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.location_on_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                spot.area,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  shadows: [
+                                    Shadow(color: Colors.black54, blurRadius: 6),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -4073,105 +4297,64 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
             ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 110),
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 112),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                Text(
-                  spot.name,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.location_on, color: _forest, size: 17),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        spot.area,
-                        style: const TextStyle(color: _muted, fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 7,
-                  runSpacing: 7,
-                  children: [
-                    _tag(spot.category, const Color(0xFFE8F1E8), _forest),
-                  ],
-                ),
-                const SizedBox(height: 20),
                 _InfoGrid(spot: spot),
-                const SizedBox(height: 10),
+                const SizedBox(height: 16),
                 OutlinedButton.icon(
                   onPressed: () => _openGoogleMaps(context, spot),
                   icon: const Icon(Icons.map_outlined),
                   label: const Text('Buka lokasi di Google Maps'),
                 ),
-                if (widget.role != AppRole.penjelajah)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
-                      onPressed: _addToCollection,
-                      icon: const Icon(Icons.playlist_add),
-                      label: const Text('Tambah ke koleksi'),
-                    ),
-                  ),
                 const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: _createStory,
-                    icon: const Icon(Icons.auto_stories_outlined),
-                    label: const Text('Buat cerita'),
-                  ),
+                Row(
+                  children: [
+                    if (widget.role != AppRole.penjelajah) ...[
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _addToCollection,
+                          icon: const Icon(Icons.playlist_add, size: 18),
+                          label: const Text('Koleksi'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _createStory,
+                        icon: const Icon(Icons.auto_stories_outlined, size: 18),
+                        label: const Text('Buat cerita'),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
                 _SectionHeading(
                   icon: Icons.auto_stories,
                   title: 'Tentang ${spot.name}',
                 ),
-                const SizedBox(height: 9),
-                Text(
-                  spot.description.isEmpty
-                      ? 'Belum ada ringkasan editorial untuk spot ini.'
-                      : spot.description,
-                  style: const TextStyle(
-                    color: _muted,
-                    height: 1.6,
-                    fontSize: 13,
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: const Color(0xFFECEFEA)),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Text(
+                    spot.description.isEmpty
+                        ? 'Belum ada ringkasan untuk spot ini.'
+                        : spot.description,
+                    style: const TextStyle(
+                      color: _muted,
+                      height: 1.65,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 22),
-                _SectionHeading(
-                  icon: Icons.add_a_photo_outlined,
-                  title: 'Spot Foto Wajib',
-                  trailing: '4 titik',
-                ),
-                const SizedBox(height: 10),
-                const _ChecklistRow(
-                  number: '01',
-                  title: 'Gerbang Tebing Harau',
-                  detail: 'Foto simetris dengan dua tebing raksasa',
-                ),
-                const _ChecklistRow(
-                  number: '02',
-                  title: 'Jembatan Kayu Sarasah Bunta',
-                  detail: 'Cipratan air sejuk dan latar batu bertingkat',
-                ),
-                const _ChecklistRow(
-                  number: '03',
-                  title: 'Kampung Eropa & Harau Sky Balon',
-                  detail: 'Warna-warni kincir angin dan spot santai',
-                ),
-                const _ChecklistRow(
-                  number: '04',
-                  title: 'Puncak Bukik Bulek',
-                  detail: 'Panorama lembah berkanopi hijau',
-                ),
-                const SizedBox(height: 20),
                 const _SectionHeading(
                   icon: Icons.tips_and_updates_outlined,
                   title: 'Etika & Tips Berkunjung',
@@ -4315,25 +4498,21 @@ class _InfoGrid extends StatelessWidget {
         icon: Icons.category_outlined,
         title: 'KATEGORI',
         value: spot.category,
-        detail: 'Kategori wisata',
       ),
       _InfoItem(
         icon: Icons.location_on_outlined,
         title: 'WILAYAH',
         value: spot.area,
-        detail: 'Lokasi administratif',
       ),
       _InfoItem(
         icon: Icons.near_me,
         title: 'LATITUDE',
         value: spot.latitude?.toStringAsFixed(5) ?? 'Belum tersedia',
-        detail: 'Koordinat spot',
       ),
       _InfoItem(
         icon: Icons.explore_outlined,
         title: 'LONGITUDE',
         value: spot.longitude?.toStringAsFixed(5) ?? 'Belum tersedia',
-        detail: 'Koordinat spot',
       ),
     ];
     return Container(
@@ -4347,7 +4526,9 @@ class _InfoGrid extends StatelessWidget {
         crossAxisCount: 2,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        childAspectRatio: 2.25,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 6,
+        childAspectRatio: 1.9,
         children: items,
       ),
     );
@@ -4359,28 +4540,26 @@ class _InfoItem extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.value,
-    required this.detail,
   });
 
   final IconData icon;
   final String title;
   final String value;
-  final String detail;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         Container(
-          width: 34,
-          height: 34,
+          width: 36,
+          height: 36,
           decoration: BoxDecoration(
             color: const Color(0xFFE8F1E8),
-            borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon, size: 17, color: _forest),
+          child: Icon(icon, size: 18, color: _forest),
         ),
-        const SizedBox(width: 7),
+        const SizedBox(width: 9),
         Expanded(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -4392,26 +4571,21 @@ class _InfoItem extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: _muted,
-                  fontSize: 8,
+                  fontSize: 9,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 3),
               Text(
                 value,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: _ink,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                  height: 1.2,
+                  fontWeight: FontWeight.w700,
                 ),
-              ),
-              Text(
-                detail,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: _muted, fontSize: 8),
               ),
             ],
           ),
@@ -4425,12 +4599,10 @@ class _SectionHeading extends StatelessWidget {
   const _SectionHeading({
     required this.icon,
     required this.title,
-    this.trailing,
   });
 
   final IconData icon;
   final String title;
-  final String? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -4448,69 +4620,7 @@ class _SectionHeading extends StatelessWidget {
             ),
           ),
         ),
-        if (trailing != null)
-          Text(trailing!, style: const TextStyle(color: _muted, fontSize: 11)),
       ],
-    );
-  }
-}
-
-class _ChecklistRow extends StatelessWidget {
-  const _ChecklistRow({
-    required this.number,
-    required this.title,
-    required this.detail,
-  });
-
-  final String number;
-  final String title;
-  final String detail;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0F3ED),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              number,
-              style: const TextStyle(
-                color: _forest,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(
-                  detail,
-                  style: const TextStyle(fontSize: 10, color: _muted),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.check_circle_outline, size: 18, color: _leaf),
-        ],
-      ),
     );
   }
 }
@@ -4665,7 +4775,7 @@ class _Stat extends StatelessWidget {
             value,
             style: const TextStyle(
               color: _ink,
-              fontSize: 17,
+              fontSize: 19,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -4673,7 +4783,11 @@ class _Stat extends StatelessWidget {
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: _muted, fontSize: 9),
+            style: const TextStyle(
+              color: _muted,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -4987,7 +5101,7 @@ class _LogoImage extends StatelessWidget {
       width: size,
       height: size,
       child: Image.asset(
-        'assets/luak_explorer_icon.png',
+        'assets/luak_explorer_icon.jpg',
         fit: BoxFit.contain,
         filterQuality: FilterQuality.medium,
       ),

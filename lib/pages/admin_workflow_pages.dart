@@ -3,6 +3,27 @@ import 'package:material_ui/material_ui.dart';
 import '../data/explorer_repository.dart';
 import '../data/models.dart';
 
+class _AdminRefreshState extends StatelessWidget {
+  const _AdminRefreshState({required this.onRefresh, required this.child});
+
+  final Future<void> Function() onRefresh;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => RefreshIndicator(
+    onRefresh: onRefresh,
+    child: ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.72,
+          child: Center(child: child),
+        ),
+      ],
+    ),
+  );
+}
+
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({required this.repository, super.key});
 
@@ -21,62 +42,166 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     _stats = widget.repository.getAdminStats();
   }
 
-  void _reload() => setState(() => _stats = widget.repository.getAdminStats());
+  Future<void> _reload() async {
+    final request = widget.repository.getAdminStats();
+    setState(() => _stats = request);
+    await request;
+  }
 
   @override
   Widget build(BuildContext context) => FutureBuilder<JsonMap>(
     future: _stats,
     builder: (context, snapshot) {
       if (snapshot.hasError) {
-        return Center(child: Text('Gagal memuat statistik: ${snapshot.error}'));
+        return _AdminRefreshState(
+          onRefresh: _reload,
+          child: Text('Gagal memuat statistik: ${snapshot.error}'),
+        );
       }
       if (!snapshot.hasData) {
-        return const Center(child: CircularProgressIndicator());
+        return _AdminRefreshState(
+          onRefresh: _reload,
+          child: const CircularProgressIndicator(),
+        );
       }
       final stats = snapshot.data!;
-      return RefreshIndicator(
-        onRefresh: () async => _reload(),
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text(
-              'Ringkasan dari Supabase',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
+      final metrics = [
+        (
+          label: 'Pengguna',
+          value: stats['total_pengguna'],
+          icon: Icons.people_alt_outlined,
+          color: const Color(0xFF1B5E20),
+          tint: const Color(0xFFE8F3E8),
+        ),
+        (
+          label: 'Kurator',
+          value: stats['total_kurator'],
+          icon: Icons.verified_user_outlined,
+          color: const Color(0xFF5B4AA5),
+          tint: const Color(0xFFF0EDFA),
+        ),
+        (
+          label: 'Spot menunggu',
+          value: stats['spot_menunggu'],
+          icon: Icons.pending_actions_outlined,
+          color: const Color(0xFFB26A12),
+          tint: const Color(0xFFFFF3DF),
+        ),
+        (
+          label: 'Spot terverifikasi',
+          value: stats['spot_terverifikasi'],
+          icon: Icons.place_outlined,
+          color: const Color(0xFF287A62),
+          tint: const Color(0xFFE6F4EF),
+        ),
+        (
+          label: 'Spot ditolak',
+          value: stats['spot_ditolak'],
+          icon: Icons.block_outlined,
+          color: const Color(0xFFB1443C),
+          tint: const Color(0xFFFCEBE9),
+        ),
+        (
+          label: 'Laporan baru',
+          value: stats['laporan_baru'],
+          icon: Icons.flag_outlined,
+          color: const Color(0xFFB1443C),
+          tint: const Color(0xFFFCEBE9),
+        ),
+        (
+          label: 'Pengajuan kurator',
+          value: stats['pengajuan_kurator_menunggu'],
+          icon: Icons.person_add_alt_1_outlined,
+          color: const Color(0xFF3568A8),
+          tint: const Color(0xFFEAF1FA),
+        ),
+      ];
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 900
+              ? 4
+              : constraints.maxWidth >= 600
+              ? 3
+              : 2;
+          final gap = 12.0;
+          final horizontalPadding = 18.0;
+          final cardWidth =
+              (constraints.maxWidth -
+                  horizontalPadding * 2 -
+                  gap * (columns - 1)) /
+              columns;
+          return RefreshIndicator(
+            onRefresh: _reload,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.all(horizontalPadding),
               children: [
-                _StatCard(label: 'Pengguna', value: stats['total_pengguna']),
-                _StatCard(label: 'Kurator', value: stats['total_kurator']),
-                _StatCard(
-                  label: 'Spot menunggu',
-                  value: stats['spot_menunggu'],
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Ringkasan Admin',
+                            style: TextStyle(
+                              color: Color(0xFF243042),
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          SizedBox(height: 5),
+                          Text(
+                            'Pantau kondisi komunitas dan konten.',
+                            style: TextStyle(
+                              color: Color(0xFF718096),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filledTonal(
+                      tooltip: 'Muat ulang statistik',
+                      onPressed: _reload,
+                      icon: const Icon(Icons.refresh_rounded),
+                    ),
+                  ],
                 ),
-                _StatCard(
-                  label: 'Spot terverifikasi',
-                  value: stats['spot_terverifikasi'],
+                const SizedBox(height: 18),
+                Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    for (final metric in metrics)
+                      SizedBox(
+                        width: cardWidth,
+                        child: _StatCard(
+                          label: metric.label,
+                          value: metric.value,
+                          icon: metric.icon,
+                          color: metric.color,
+                          tint: metric.tint,
+                        ),
+                      ),
+                  ],
                 ),
-                _StatCard(label: 'Spot ditolak', value: stats['spot_ditolak']),
-                _StatCard(label: 'Laporan baru', value: stats['laporan_baru']),
-                _StatCard(
-                  label: 'Pengajuan Kurator',
-                  value: stats['pengajuan_kurator_menunggu'],
+                const SizedBox(height: 12),
+                Center(
+                  child: Text(
+                    'Tarik layar ke bawah untuk memperbarui data',
+                    style: const TextStyle(
+                      color: Color(0xFF8A948C),
+                      fontSize: 11,
+                    ),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                onPressed: _reload,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Muat ulang'),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       );
     },
   );
@@ -226,26 +351,215 @@ class _CuratorApplicationCardState extends State<CuratorApplicationCard> {
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({required this.label, required this.value});
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.tint,
+  });
 
   final String label;
   final Object? value;
+  final IconData icon;
+  final Color color;
+  final Color tint;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 185,
-    child: Card(
+  Widget build(BuildContext context) => Container(
+    constraints: const BoxConstraints(minHeight: 132),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: const Color(0xFFE8EDE6)),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x080F2414),
+          blurRadius: 12,
+          offset: Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: tint,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: color, size: 19),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          '$value',
+          style: TextStyle(
+            color: color,
+            fontSize: 24,
+            height: 1,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Color(0xFF66736A),
+            fontSize: 11,
+            height: 1.25,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _AdminEmptyState extends StatelessWidget {
+  const _AdminEmptyState({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.onRefresh,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final Future<void> Function()? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Center(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(32),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text('$value', style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 5),
-            Text(label),
+            Container(
+              width: 68,
+              height: 68,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF3EC),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Icon(icon, color: const Color(0xFF1B5E20), size: 30),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF243042),
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF718096),
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
+            if (onRefresh != null) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: onRefresh,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Muat ulang'),
+              ),
+            ],
           ],
         ),
       ),
+    );
+    if (onRefresh == null) return content;
+    return RefreshIndicator(
+      onRefresh: onRefresh!,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.7,
+            child: content,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminListHeader extends StatelessWidget {
+  const _AdminListHeader({
+    required this.title,
+    required this.subtitle,
+    required this.count,
+    this.onRefresh,
+  });
+
+  final String title;
+  final String subtitle;
+  final int count;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(2, 0, 2, 4),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Color(0xFF243042),
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: const TextStyle(color: Color(0xFF718096), fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        if (onRefresh != null)
+          IconButton.filledTonal(
+            tooltip: 'Muat ulang',
+            onPressed: onRefresh,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        if (onRefresh != null) const SizedBox(width: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F3E8),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            '$count',
+            style: const TextStyle(
+              color: Color(0xFF1B5E20),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }
@@ -268,7 +582,11 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
     _reports = widget.repository.getReports();
   }
 
-  void _reload() => setState(() => _reports = widget.repository.getReports());
+  Future<void> _reload() async {
+    final request = widget.repository.getReports();
+    setState(() => _reports = request);
+    await request;
+  }
 
   Future<void> _updateReport(Map<String, dynamic> report, String status) async {
     final note = TextEditingController(
@@ -303,7 +621,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
           status: status,
           adminNote: note.text.trim(),
         );
-        _reload();
+        await _reload();
       } on Exception catch (error) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -322,42 +640,94 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
     future: _reports,
     builder: (context, snapshot) {
       if (snapshot.hasError) {
-        return Center(child: Text('Gagal memuat laporan: ${snapshot.error}'));
+        return _AdminRefreshState(
+          onRefresh: _reload,
+          child: Text('Gagal memuat laporan: ${snapshot.error}'),
+        );
       }
       if (!snapshot.hasData) {
-        return const Center(child: CircularProgressIndicator());
+        return _AdminRefreshState(
+          onRefresh: _reload,
+          child: const CircularProgressIndicator(),
+        );
       }
       final reports = snapshot.data!;
       if (reports.isEmpty) {
-        return const Center(child: Text('Belum ada laporan.'));
+        return _AdminEmptyState(
+          icon: Icons.flag_outlined,
+          title: 'Belum ada laporan',
+          message: 'Laporan dari pengguna akan muncul di halaman ini.',
+          onRefresh: _reload,
+        );
       }
-      return ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: reports.length,
-        separatorBuilder: (_, _) => const Divider(),
-        itemBuilder: (context, index) {
-          final report = reports[index];
-          return ListTile(
-            title: Text(
-              '${jsonString(report['jenis_target'])} • ${jsonString(report['status'])}',
-            ),
-            subtitle: Text(
-              '${jsonString(report['alasan'])}\nID: ${jsonString(report['id_target'])}',
-            ),
-            isThreeLine: true,
-            trailing: PopupMenuButton<String>(
-              onSelected: (status) => _updateReport(report, status),
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                  value: 'diproses',
-                  child: Text('Tandai diproses'),
+      return RefreshIndicator(
+        onRefresh: _reload,
+        child: ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+          itemCount: reports.length + 1,
+          separatorBuilder: (_, _) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return _AdminListHeader(
+                title: 'Laporan masuk',
+                subtitle: 'Tinjau laporan dan perbarui statusnya.',
+                count: reports.length,
+                onRefresh: _reload,
+              );
+            }
+            final report = reports[index - 1];
+            return ListTile(
+              contentPadding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
+              tileColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: const BorderSide(color: Color(0xFFE8EDE6)),
+              ),
+              leading: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFCEBE9),
+                  borderRadius: BorderRadius.circular(13),
                 ),
-                PopupMenuItem(value: 'selesai', child: Text('Selesaikan')),
-                PopupMenuItem(value: 'ditolak', child: Text('Tolak laporan')),
-              ],
-            ),
-          );
-        },
+                child: const Icon(
+                  Icons.flag_outlined,
+                  color: Color(0xFFB1443C),
+                  size: 20,
+                ),
+              ),
+              titleTextStyle: const TextStyle(
+                color: Color(0xFF243042),
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+              subtitleTextStyle: const TextStyle(
+                color: Color(0xFF718096),
+                fontSize: 12,
+                height: 1.45,
+              ),
+              title: Text(
+                '${jsonString(report['jenis_target'])} • ${jsonString(report['status'])}',
+              ),
+              subtitle: Text(
+                '${jsonString(report['alasan'])}\nID: ${jsonString(report['id_target'])}',
+              ),
+              isThreeLine: true,
+              trailing: PopupMenuButton<String>(
+                onSelected: (status) => _updateReport(report, status),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'diproses',
+                    child: Text('Tandai diproses'),
+                  ),
+                  PopupMenuItem(value: 'selesai', child: Text('Selesaikan')),
+                  PopupMenuItem(value: 'ditolak', child: Text('Tolak laporan')),
+                ],
+              ),
+            );
+          },
+        ),
       );
     },
   );
@@ -382,8 +752,10 @@ class _CuratorApplicationsPageState extends State<CuratorApplicationsPage> {
     _applications = widget.repository.getCuratorApplications();
   }
 
-  void _reload() {
-    setState(() => _applications = widget.repository.getCuratorApplications());
+  Future<void> _reload() async {
+    final request = widget.repository.getCuratorApplications();
+    setState(() => _applications = request);
+    await request;
   }
 
   Future<void> _review(Map<String, dynamic> application, bool approve) async {
@@ -419,7 +791,7 @@ class _CuratorApplicationsPageState extends State<CuratorApplicationsPage> {
           approve: approve,
           note: note.text.trim(),
         );
-        _reload();
+        await _reload();
       } on Exception catch (error) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -438,40 +810,95 @@ class _CuratorApplicationsPageState extends State<CuratorApplicationsPage> {
     future: _applications,
     builder: (context, snapshot) {
       if (snapshot.hasError) {
-        return Center(child: Text('Gagal memuat pengajuan: ${snapshot.error}'));
+        return _AdminRefreshState(
+          onRefresh: _reload,
+          child: Text('Gagal memuat pengajuan: ${snapshot.error}'),
+        );
       }
       if (!snapshot.hasData) {
-        return const Center(child: CircularProgressIndicator());
+        return _AdminRefreshState(
+          onRefresh: _reload,
+          child: const CircularProgressIndicator(),
+        );
       }
       final applications = snapshot.data!;
       if (applications.isEmpty) {
-        return const Center(child: Text('Tidak ada pengajuan Kurator.'));
+        return _AdminEmptyState(
+          icon: Icons.person_add_alt_1_outlined,
+          title: 'Belum ada pengajuan',
+          message: 'Pengajuan menjadi kurator akan muncul di halaman ini.',
+          onRefresh: _reload,
+        );
       }
-      return ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: applications.length,
-        separatorBuilder: (_, _) => const Divider(),
-        itemBuilder: (context, index) {
-          final application = applications[index];
-          final user = asJsonMap(application['users']);
-          return ListTile(
-            title: Text(jsonString(user?['nama'], 'Pengguna')),
-            subtitle: Text(
-              '@${jsonString(user?['username'])}\n${jsonString(application['alasan'])}',
-            ),
-            isThreeLine: true,
-            trailing: PopupMenuButton<bool>(
-              onSelected: (approve) => _review(application, approve),
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                  value: true,
-                  child: Text('Setujui sebagai Kurator'),
+      return RefreshIndicator(
+        onRefresh: _reload,
+        child: ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+          itemCount: applications.length + 1,
+          separatorBuilder: (_, _) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return _AdminListHeader(
+                title: 'Pengajuan kurator',
+                subtitle: 'Tinjau pengajuan akses kurator.',
+                count: applications.length,
+                onRefresh: _reload,
+              );
+            }
+            final application = applications[index - 1];
+            final user = asJsonMap(application['users']);
+            return ListTile(
+              contentPadding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
+              tileColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: const BorderSide(color: Color(0xFFE8EDE6)),
+              ),
+              leading: CircleAvatar(
+                radius: 21,
+                backgroundColor: const Color(0xFFEAF1FA),
+                child: Text(
+                  jsonString(user?['nama'], 'P').trim().isEmpty
+                      ? 'P'
+                      : jsonString(
+                          user?['nama'],
+                          'P',
+                        ).trim().substring(0, 1).toUpperCase(),
+                  style: const TextStyle(
+                    color: Color(0xFF3568A8),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                PopupMenuItem(value: false, child: Text('Tolak')),
-              ],
-            ),
-          );
-        },
+              ),
+              titleTextStyle: const TextStyle(
+                color: Color(0xFF243042),
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+              subtitleTextStyle: const TextStyle(
+                color: Color(0xFF718096),
+                fontSize: 12,
+                height: 1.45,
+              ),
+              title: Text(jsonString(user?['nama'], 'Pengguna')),
+              subtitle: Text(
+                '@${jsonString(user?['username'])}\n${jsonString(application['alasan'])}',
+              ),
+              isThreeLine: true,
+              trailing: PopupMenuButton<bool>(
+                onSelected: (approve) => _review(application, approve),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: true,
+                    child: Text('Setujui sebagai Kurator'),
+                  ),
+                  PopupMenuItem(value: false, child: Text('Tolak')),
+                ],
+              ),
+            );
+          },
+        ),
       );
     },
   );
@@ -495,21 +922,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
     _notifications = widget.repository.getNotifications();
   }
 
-  void _reload() {
-    setState(() => _notifications = widget.repository.getNotifications());
-  }
-
-  Future<void> _markAllRead() async {
-    try {
-      await widget.repository.markAllNotificationsRead();
-      _reload();
-    } on Exception catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menandai notifikasi: $error')),
-        );
-      }
-    }
+  Future<void> _reload() async {
+    final request = widget.repository.getNotifications();
+    setState(() => _notifications = request);
+    await request;
   }
 
   @override
@@ -517,45 +933,221 @@ class _NotificationsPageState extends State<NotificationsPage> {
     appBar: AppBar(
       title: const Text('Notifikasi'),
       actions: [
-        TextButton(onPressed: _markAllRead, child: const Text('Baca semua')),
+        IconButton(
+          tooltip: 'Muat ulang notifikasi',
+          onPressed: _reload,
+          icon: const Icon(Icons.refresh_rounded),
+        ),
       ],
     ),
     body: FutureBuilder<List<Map<String, dynamic>>>(
       future: _notifications,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(
+          return _AdminRefreshState(
+            onRefresh: _reload,
             child: Text('Gagal memuat notifikasi: ${snapshot.error}'),
           );
         }
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return _AdminRefreshState(
+            onRefresh: _reload,
+            child: const CircularProgressIndicator(),
+          );
         }
         final notifications = snapshot.data!;
         if (notifications.isEmpty) {
-          return const Center(child: Text('Belum ada notifikasi.'));
+          return RefreshIndicator(
+            onRefresh: _reload,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(
+                  height: MediaQuery.sizeOf(context).height * 0.68,
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEAF3EC),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: const Icon(
+                            Icons.notifications_none_rounded,
+                            color: Color(0xFF1B5E20),
+                            size: 34,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Belum ada notifikasi',
+                          style: TextStyle(
+                            color: Color(0xFF243042),
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Informasi penting tentang aktivitasmu akan muncul di sini.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Color(0xFF718096),
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
         }
-        return ListView.separated(
-          itemCount: notifications.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final notification = notifications[index];
-            final read = notification['sudah_dibaca'] == true;
-            return ListTile(
-              leading: Icon(
-                read ? Icons.notifications_none : Icons.notifications_active,
-              ),
-              title: Text(
-                jsonString(notification['judul']),
-                style: TextStyle(
-                  fontWeight: read ? FontWeight.normal : FontWeight.bold,
+        final unreadCount = notifications
+            .where((notification) => notification['sudah_dibaca'] != true)
+            .length;
+        return RefreshIndicator(
+          onRefresh: _reload,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 14),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Aktivitas terbaru',
+                        style: TextStyle(
+                          color: Color(0xFF243042),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    if (unreadCount > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F3E8),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '$unreadCount belum dibaca',
+                          style: const TextStyle(
+                            color: Color(0xFF1B5E20),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              subtitle: Text(jsonString(notification['isi'])),
-            );
-          },
+              for (final notification in notifications) ...[
+                _NotificationCard(notification: notification),
+                const SizedBox(height: 10),
+              ],
+            ],
+          ),
         );
       },
     ),
   );
+}
+
+class _NotificationCard extends StatelessWidget {
+  const _NotificationCard({required this.notification});
+
+  final Map<String, dynamic> notification;
+
+  @override
+  Widget build(BuildContext context) {
+    final read = notification['sudah_dibaca'] == true;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: read ? Colors.white : const Color(0xFFF3F8F1),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: read ? const Color(0xFFE8EDE6) : const Color(0xFFD9E9D7),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x080F2414),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: read ? const Color(0xFFF0F3ED) : const Color(0xFFE1F0E1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              read
+                  ? Icons.notifications_none_rounded
+                  : Icons.notifications_active_rounded,
+              color: const Color(0xFF1B5E20),
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  jsonString(notification['judul'], 'Notifikasi'),
+                  style: TextStyle(
+                    color: const Color(0xFF243042),
+                    fontSize: 14,
+                    height: 1.3,
+                    fontWeight: read ? FontWeight.w600 : FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  jsonString(notification['isi']),
+                  style: const TextStyle(
+                    color: Color(0xFF66736A),
+                    fontSize: 12,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (!read) ...[
+            const SizedBox(width: 8),
+            Container(
+              width: 8,
+              height: 8,
+              margin: const EdgeInsets.only(top: 5),
+              decoration: const BoxDecoration(
+                color: Color(0xFF2E7D32),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

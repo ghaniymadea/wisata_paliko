@@ -213,47 +213,80 @@ class _SignInPageState extends State<SignInPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F0),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildWelcomeBanner(),
-                  const SizedBox(height: 18),
-                  _buildAuthCard(),
-                  const SizedBox(height: 18),
-                  const Text(
-                    'Jelajahi Payakumbuh & Lima Puluh Kota bersama Luak Explorer.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Color(0xFF718096),
-                      fontSize: 12,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFFEAF2E8), Color(0xFFF7F8F4)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
             ),
-          ),
+            Positioned(
+              top: -90,
+              right: -70,
+              child: _AuthOrb(size: 240, opacity: 0.5),
+            ),
+            Positioned(
+              bottom: -110,
+              left: -90,
+              child: _AuthOrb(size: 260, opacity: 0.35),
+            ),
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 28,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildWelcomeBanner(),
+                      const SizedBox(height: 18),
+                      _buildAuthCard(),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'Jelajahi Payakumbuh & Lima Puluh Kota bersama Luak Explorer.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFF718096),
+                          fontSize: 12,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildWelcomeBanner() => Container(
-    padding: const EdgeInsets.all(24),
+    padding: const EdgeInsets.all(22),
     decoration: BoxDecoration(
       gradient: const LinearGradient(
-        colors: [Color(0xFF174B2A), Color(0xFF2E7D4F)],
+        colors: [Color(0xFF123D28), Color(0xFF2E7D4F)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
       borderRadius: BorderRadius.circular(26),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x241B5E20),
+          blurRadius: 20,
+          offset: Offset(0, 9),
+        ),
+      ],
     ),
     child: Stack(
       children: [
@@ -272,33 +305,53 @@ class _SignInPageState extends State<SignInPage> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              padding: const EdgeInsets.all(5),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(11),
-                child: Image.asset(
-                  'assets/luak_explorer_icon.png',
-                  fit: BoxFit.contain,
+            Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(17),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(13),
+                    child: Image.asset(
+                      'assets/luak_explorer_icon.jpg',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'LUAK EXPLORER',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'PAYAKUMBUH & LIMA PULUH KOTA',
+                      style: TextStyle(
+                        color: Color(0xFFD8E9D8),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.7,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 18),
-            const Text(
-              'LUAK EXPLORER',
-              style: TextStyle(
-                color: Color(0xFFD8E9D8),
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.5,
-              ),
-            ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 22),
             const Text(
               'Temukan cerita di setiap perjalanan.',
               style: TextStyle(
@@ -340,7 +393,9 @@ class _SignInPageState extends State<SignInPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            _isSignUp ? 'Buat akun penjelajah' : 'Selamat datang kembali',
+            _awaitingOtp
+                ? 'Verifikasi email'
+                : (_isSignUp ? 'Buat akun penjelajah' : 'Selamat datang'),
             style: const TextStyle(
               color: Color(0xFF1E293B),
               fontSize: 21,
@@ -350,18 +405,23 @@ class _SignInPageState extends State<SignInPage> {
           ),
           const SizedBox(height: 5),
           Text(
-            _isSignUp
-                ? 'Daftar untuk menyimpan tempat dan berbagi cerita.'
-                : 'Masuk untuk melanjutkan petualangan Anda.',
+            _awaitingOtp
+                ? 'Masukkan kode yang kami kirim ke ${_email.text.trim()}.'
+                : (_isSignUp
+                      ? 'Daftar untuk menyimpan tempat dan berbagi cerita.'
+                      : 'Masuk untuk melanjutkan petualangan Anda.'),
             style: const TextStyle(
               color: Color(0xFF718096),
               fontSize: 13,
               height: 1.45,
             ),
           ),
-          const SizedBox(height: 22),
-          _buildModeSelector(),
-          const SizedBox(height: 20),
+          if (!_awaitingOtp) ...[
+            const SizedBox(height: 22),
+            _buildModeSelector(),
+            const SizedBox(height: 20),
+          ] else
+            const SizedBox(height: 18),
           AutofillGroup(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -530,24 +590,25 @@ class _SignInPageState extends State<SignInPage> {
                   ),
           ),
           const SizedBox(height: 12),
-          TextButton(
-            onPressed: _busy || _awaitingOtp
-                ? null
-                : () => setState(() {
-                    _isSignUp = !_isSignUp;
-                    _notice = null;
-                    _passwordVisible = false;
-                  }),
-            child: Text(
-              _isSignUp
-                  ? 'Sudah punya akun? Masuk'
-                  : 'Belum punya akun? Daftar',
-              style: const TextStyle(
-                color: Color(0xFF28613B),
-                fontWeight: FontWeight.w700,
+          if (!_awaitingOtp)
+            TextButton(
+              onPressed: _busy
+                  ? null
+                  : () => setState(() {
+                      _isSignUp = !_isSignUp;
+                      _notice = null;
+                      _passwordVisible = false;
+                    }),
+              child: Text(
+                _isSignUp
+                    ? 'Sudah punya akun? Masuk'
+                    : 'Belum punya akun? Daftar',
+                style: const TextStyle(
+                  color: Color(0xFF28613B),
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-          ),
         ],
       ),
     ),
@@ -645,6 +706,23 @@ class _SignInPageState extends State<SignInPage> {
 
   String? _required(String? value, String label) =>
       (value?.trim().isEmpty ?? true) ? '$label wajib diisi' : null;
+}
+
+class _AuthOrb extends StatelessWidget {
+  const _AuthOrb({required this.size, required this.opacity});
+
+  final double size;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: const Color(0xFFBBD5B7).withValues(alpha: opacity),
+      shape: BoxShape.circle,
+    ),
+  );
 }
 
 class _MessagePage extends StatelessWidget {
