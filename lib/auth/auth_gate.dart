@@ -52,7 +52,8 @@ class SignInPage extends StatefulWidget {
   State<SignInPage> createState() => _SignInPageState();
 }
 
-class _SignInPageState extends State<SignInPage> {
+class _SignInPageState extends State<SignInPage>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
@@ -60,11 +61,48 @@ class _SignInPageState extends State<SignInPage> {
   final _name = TextEditingController();
   final _username = TextEditingController();
   bool _isSignUp = false;
+  bool _switchingMode = false;
   bool _busy = false;
   bool _passwordVisible = false;
   bool _noticeIsSuccess = false;
   bool _awaitingOtp = false;
   String? _notice;
+  late final AnimationController _modeTransitionController;
+
+  @override
+  void initState() {
+    super.initState();
+    _modeTransitionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 360),
+      value: 1,
+    );
+  }
+
+  Future<void> _switchAuthMode(bool signUp) async {
+    if (_busy || _awaitingOtp || _switchingMode || _isSignUp == signUp) return;
+    _switchingMode = true;
+    try {
+      await _modeTransitionController.animateTo(
+        0.35,
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeInCubic,
+      );
+      if (!mounted) return;
+      setState(() {
+        _isSignUp = signUp;
+        _notice = null;
+        _passwordVisible = false;
+      });
+      await _modeTransitionController.animateTo(
+        1,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    } finally {
+      _switchingMode = false;
+    }
+  }
 
   @override
   void dispose() {
@@ -73,6 +111,7 @@ class _SignInPageState extends State<SignInPage> {
     _otp.dispose();
     _name.dispose();
     _username.dispose();
+    _modeTransitionController.dispose();
     super.dispose();
   }
 
@@ -212,15 +251,18 @@ class _SignInPageState extends State<SignInPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       body: SafeArea(
         child: Stack(
           fit: StackFit.expand,
           children: [
-            const DecoratedBox(
+            DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Color(0xFFEAF2E8), Color(0xFFF7F8F4)],
+                  colors: isDark
+                      ? const [Color(0xFF101713), Color(0xFF18211B)]
+                      : const [Color(0xFFEAF2E8), Color(0xFFF7F8F4)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -249,7 +291,28 @@ class _SignInPageState extends State<SignInPage> {
                     children: [
                       _buildWelcomeBanner(),
                       const SizedBox(height: 18),
-                      _buildAuthCard(),
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 360),
+                        curve: Curves.easeInOutCubic,
+                        alignment: Alignment.topCenter,
+                        child: AnimatedBuilder(
+                          animation: _modeTransitionController,
+                          builder: (context, child) {
+                            final progress = _modeTransitionController.value;
+                            return Opacity(
+                              opacity: 0.55 + progress * 0.45,
+                              child: Transform.translate(
+                                offset: Offset(0, 10 * (1 - progress)),
+                                child: Transform.scale(
+                                  scale: 0.985 + progress * 0.015,
+                                  child: child,
+                                ),
+                              ),
+                            );
+                          },
+                          child: _buildAuthCard(context),
+                        ),
+                      ),
                       const SizedBox(height: 18),
                       const Text(
                         'Jelajahi Payakumbuh & Lima Puluh Kota bersama Luak Explorer.',
@@ -373,10 +436,10 @@ class _SignInPageState extends State<SignInPage> {
     ),
   );
 
-  Widget _buildAuthCard() => Container(
+  Widget _buildAuthCard(BuildContext context) => Container(
     padding: const EdgeInsets.all(24),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(26),
       border: Border.all(color: const Color(0xFFE9EDE5)),
       boxShadow: const [
@@ -396,8 +459,8 @@ class _SignInPageState extends State<SignInPage> {
             _awaitingOtp
                 ? 'Verifikasi email'
                 : (_isSignUp ? 'Buat akun penjelajah' : 'Selamat datang'),
-            style: const TextStyle(
-              color: Color(0xFF1E293B),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 21,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.4,
@@ -410,15 +473,15 @@ class _SignInPageState extends State<SignInPage> {
                 : (_isSignUp
                       ? 'Daftar untuk menyimpan tempat dan berbagi cerita.'
                       : 'Masuk untuk melanjutkan petualangan Anda.'),
-            style: const TextStyle(
-              color: Color(0xFF718096),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 13,
               height: 1.45,
             ),
           ),
           if (!_awaitingOtp) ...[
             const SizedBox(height: 22),
-            _buildModeSelector(),
+            _buildModeSelector(context),
             const SizedBox(height: 20),
           ] else
             const SizedBox(height: 18),
@@ -592,13 +655,7 @@ class _SignInPageState extends State<SignInPage> {
           const SizedBox(height: 12),
           if (!_awaitingOtp)
             TextButton(
-              onPressed: _busy
-                  ? null
-                  : () => setState(() {
-                      _isSignUp = !_isSignUp;
-                      _notice = null;
-                      _passwordVisible = false;
-                    }),
+              onPressed: _busy ? null : () => _switchAuthMode(!_isSignUp),
               child: Text(
                 _isSignUp
                     ? 'Sudah punya akun? Masuk'
@@ -614,39 +671,38 @@ class _SignInPageState extends State<SignInPage> {
     ),
   );
 
-  Widget _buildModeSelector() => Container(
+  Widget _buildModeSelector(BuildContext context) => Container(
     padding: const EdgeInsets.all(4),
     decoration: BoxDecoration(
-      color: const Color(0xFFF1F4EF),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(14),
     ),
     child: Row(
       children: [
-        _modeButton('Masuk', isSignUp: false),
-        _modeButton('Daftar', isSignUp: true),
+        _modeButton(context, 'Masuk', isSignUp: false),
+        _modeButton(context, 'Daftar', isSignUp: true),
       ],
     ),
   );
 
-  Widget _modeButton(String label, {required bool isSignUp}) {
+  Widget _modeButton(
+    BuildContext context,
+    String label, {
+    required bool isSignUp,
+  }) {
     final selected = _isSignUp == isSignUp;
     return Expanded(
       child: TextButton(
         onPressed: _busy || _awaitingOtp
             ? null
-            : () {
-                if (_isSignUp == isSignUp) return;
-                setState(() {
-                  _isSignUp = isSignUp;
-                  _notice = null;
-                  _passwordVisible = false;
-                });
-              },
+            : () => _switchAuthMode(isSignUp),
         style: TextButton.styleFrom(
-          backgroundColor: selected ? Colors.white : Colors.transparent,
+          backgroundColor: selected
+              ? Theme.of(context).colorScheme.surface
+              : Colors.transparent,
           foregroundColor: selected
-              ? const Color(0xFF1B5E20)
-              : const Color(0xFF718096),
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.onSurfaceVariant,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(11),
           ),
@@ -683,7 +739,7 @@ class _SignInPageState extends State<SignInPage> {
         prefixIcon: prefixIcon == null ? null : Icon(prefixIcon, size: 20),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: const Color(0xFFFAFBF9),
+        fillColor: Theme.of(context).colorScheme.surfaceContainerLow,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 16,

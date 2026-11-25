@@ -117,6 +117,7 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: widget.showAppBar
           ? AppBar(
@@ -151,7 +152,7 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
                 if (!widget.showAppBar) ...[
                   Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -166,7 +167,7 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
                             Text(
                               'Tinjau usulan tempat sebelum ditampilkan ke publik.',
                               style: TextStyle(
-                                color: Color(0xFF718096),
+                                color: scheme.onSurfaceVariant,
                                 fontSize: 12,
                               ),
                             ),
@@ -188,14 +189,14 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
                     vertical: 14,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEAF3EC),
+                    color: scheme.secondaryContainer,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.pending_actions_rounded,
-                        color: Color(0xFF1B5E20),
+                        color: scheme.primary,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -203,8 +204,8 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
                           spots.isEmpty
                               ? 'Semua usulan sudah ditangani.'
                               : '${spots.length} usulan menunggu ditinjau',
-                          style: const TextStyle(
-                            color: Color(0xFF1B5E20),
+                          style: TextStyle(
+                            color: scheme.onSecondaryContainer,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -225,8 +226,7 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
                           Icon(
                             Icons.verified_rounded,
                             size: 42,
-                            color: const Color(0xFF1B5E20)
-                                .withValues(alpha: 0.75),
+                            color: scheme.primary,
                           ),
                           const SizedBox(height: 12),
                           const Text(
@@ -234,11 +234,11 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
                             style: TextStyle(fontWeight: FontWeight.w800),
                           ),
                           const SizedBox(height: 4),
-                          const Text(
+                          Text(
                             'Semua pengajuan spot sudah selesai diproses.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Color(0xFF718096),
+                              color: scheme.onSurfaceVariant,
                               fontSize: 12,
                             ),
                           ),
@@ -261,12 +261,12 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
                                 width: 44,
                                 height: 44,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFE8F3E8),
+                                  color: scheme.secondaryContainer,
                                   borderRadius: BorderRadius.circular(14),
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.location_on_outlined,
-                                  color: Color(0xFF1B5E20),
+                                  color: scheme.primary,
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -288,15 +288,15 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
                                       spot.area,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Color(0xFF718096),
+                                      style: TextStyle(
+                                        color: scheme.onSurfaceVariant,
                                         fontSize: 12,
                                       ),
                                     ),
                                     const SizedBox(height: 9),
                                     DecoratedBox(
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFF3F6F2),
+                                        color: scheme.surfaceContainerLow,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Padding(
@@ -306,8 +306,8 @@ class _CuratorVerificationPageState extends State<CuratorVerificationPage> {
                                         ),
                                         child: Text(
                                           'Usul oleh ${spot.creatorName}',
-                                          style: const TextStyle(
-                                            color: Color(0xFF52705A),
+                                          style: TextStyle(
+                                            color: scheme.onSurfaceVariant,
                                             fontSize: 11,
                                             fontWeight: FontWeight.w600,
                                           ),
@@ -521,6 +521,7 @@ class _UserRoleTabState extends State<_UserRoleTab> {
         }
         final users = snapshot.data!.users;
         final roles = snapshot.data!.roles;
+        final scheme = Theme.of(context).colorScheme;
         return RefreshIndicator(
           onRefresh: _reload,
           child: ListView(
@@ -531,14 +532,14 @@ class _UserRoleTabState extends State<_UserRoleTab> {
                 padding: const EdgeInsets.fromLTRB(2, 0, 2, 14),
                 child: Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Manajemen pengguna',
                             style: TextStyle(
-                              color: Color(0xFF243042),
+                              color: scheme.onSurface,
                               fontSize: 17,
                               fontWeight: FontWeight.w800,
                             ),
@@ -547,7 +548,7 @@ class _UserRoleTabState extends State<_UserRoleTab> {
                           Text(
                             'Atur akses dan peran akun.',
                             style: TextStyle(
-                              color: Color(0xFF718096),
+                              color: scheme.onSurfaceVariant,
                               fontSize: 12,
                             ),
                           ),
@@ -560,13 +561,13 @@ class _UserRoleTabState extends State<_UserRoleTab> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE8F3E8),
+                        color: scheme.secondaryContainer,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         '${users.length} akun',
-                        style: const TextStyle(
-                          color: Color(0xFF1B5E20),
+                        style: TextStyle(
+                          color: scheme.onSecondaryContainer,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
@@ -600,10 +601,12 @@ class _UserRoleTabState extends State<_UserRoleTab> {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: ListTile(
                     contentPadding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-                    tileColor: Colors.white,
+                    tileColor: Theme.of(context).colorScheme.surface,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
-                      side: const BorderSide(color: Color(0xFFE8EDE6)),
+                      side: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
                     ),
                     leading: CircleAvatar(
                       radius: 21,
@@ -618,13 +621,13 @@ class _UserRoleTabState extends State<_UserRoleTab> {
                         ),
                       ),
                     ),
-                    titleTextStyle: const TextStyle(
-                      color: Color(0xFF243042),
+                    titleTextStyle: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                     ),
-                    subtitleTextStyle: const TextStyle(
-                      color: Color(0xFF718096),
+                    subtitleTextStyle: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 11,
                     ),
                     title: Text(
@@ -642,19 +645,21 @@ class _UserRoleTabState extends State<_UserRoleTab> {
                       height: 42,
                       padding: const EdgeInsets.only(left: 12, right: 6),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.surface,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE0E8DF)),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<int>(
                           value: roleItems.any((item) => item.value == roleId)
                               ? roleId
                               : null,
-                          hint: const Text(
+                          hint: Text(
                             'Pilih role',
                             style: TextStyle(
-                              color: Color(0xFF7A8A7C),
+                              color: scheme.onSurfaceVariant,
                               fontSize: 13,
                             ),
                           ),
@@ -662,15 +667,15 @@ class _UserRoleTabState extends State<_UserRoleTab> {
                           isDense: true,
                           itemHeight: 48,
                           borderRadius: BorderRadius.circular(16),
-                          dropdownColor: Colors.white,
+                          dropdownColor: Theme.of(context).colorScheme.surface,
                           elevation: 8,
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.keyboard_arrow_down_rounded,
-                            color: Color(0xFF1B5E20),
+                            color: scheme.primary,
                             size: 19,
                           ),
-                          style: const TextStyle(
-                            color: Color(0xFF243042),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                           ),
@@ -686,7 +691,7 @@ class _UserRoleTabState extends State<_UserRoleTab> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: item.value == roleId
-                                          ? const Color(0xFFE8F3E8)
+                                          ? scheme.secondaryContainer
                                           : Colors.transparent,
                                       borderRadius: BorderRadius.circular(9),
                                     ),
@@ -699,10 +704,10 @@ class _UserRoleTabState extends State<_UserRoleTab> {
                                           ),
                                         ),
                                         if (item.value == roleId)
-                                          const Icon(
+                                          Icon(
                                             Icons.check_rounded,
                                             size: 16,
-                                            color: Color(0xFF1B5E20),
+                                            color: scheme.primary,
                                           ),
                                       ],
                                     ),
@@ -823,24 +828,25 @@ class _MasterTabState extends State<_MasterTab> {
           );
         }
         final data = snapshot.data!;
+        final scheme = Theme.of(context).colorScheme;
         return RefreshIndicator(
           onRefresh: _reload,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
             children: [
-              const Text(
+              Text(
                 'Data master',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF243042),
+                  color: scheme.onSurface,
                 ),
               ),
               const SizedBox(height: 5),
-              const Text(
+              Text(
                 'Kelola kategori dan wilayah yang digunakan di aplikasi.',
-                style: TextStyle(color: Color(0xFF718096)),
+                style: TextStyle(color: scheme.onSurfaceVariant),
               ),
               const SizedBox(height: 20),
               Card(
@@ -876,8 +882,8 @@ class _MasterTabState extends State<_MasterTab> {
                                 ),
                                 Text(
                                   '${data.categories.length} kategori tersedia',
-                                  style: const TextStyle(
-                                    color: Color(0xFF718096),
+                                  style: TextStyle(
+                                    color: scheme.onSurfaceVariant,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -900,29 +906,30 @@ class _MasterTabState extends State<_MasterTab> {
                             vertical: 10,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF7F9F6),
+                            color: scheme.surfaceContainerLow,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.label_outline,
                                 size: 18,
-                                color: Color(0xFF52705A),
+                                color: scheme.onSecondaryContainer,
                               ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
                                   jsonString(category['nama']),
-                                  style: const TextStyle(
+                                  style: TextStyle(
+                                    color: scheme.onSurface,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ),
                               Text(
                                 jsonString(category['slug']),
-                                style: const TextStyle(
-                                  color: Color(0xFF87958A),
+                                style: TextStyle(
+                                  color: scheme.onSurfaceVariant,
                                   fontSize: 12,
                                 ),
                               ),
@@ -967,8 +974,8 @@ class _MasterTabState extends State<_MasterTab> {
                                 ),
                                 Text(
                                   '${data.districts.length} kecamatan tersedia',
-                                  style: const TextStyle(
-                                    color: Color(0xFF718096),
+                                  style: TextStyle(
+                                    color: scheme.onSurfaceVariant,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -994,15 +1001,15 @@ class _MasterTabState extends State<_MasterTab> {
                             vertical: 10,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF7F9FB),
+                            color: scheme.surfaceContainerLow,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.place_outlined,
                                 size: 18,
-                                color: Color(0xFF52708A),
+                                color: scheme.primary,
                               ),
                               const SizedBox(width: 10),
                               Expanded(
@@ -1011,7 +1018,8 @@ class _MasterTabState extends State<_MasterTab> {
                                   children: [
                                     Text(
                                       jsonString(district['nama']),
-                                      style: const TextStyle(
+                                      style: TextStyle(
+                                        color: scheme.onSurface,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -1022,8 +1030,8 @@ class _MasterTabState extends State<_MasterTab> {
                                         )?['nama'],
                                         'Kabupaten/kota tidak diketahui',
                                       ),
-                                      style: const TextStyle(
-                                        color: Color(0xFF8795A5),
+                                      style: TextStyle(
+                                        color: scheme.onSurfaceVariant,
                                         fontSize: 12,
                                       ),
                                     ),
@@ -1233,6 +1241,7 @@ class _ActivityTabState extends State<_ActivityTab> {
                 );
         }
         final rows = snapshot.data!;
+        final scheme = Theme.of(context).colorScheme;
         if (rows.isEmpty) {
           return RefreshIndicator(
             onRefresh: _reload,
@@ -1257,11 +1266,11 @@ class _ActivityTabState extends State<_ActivityTab> {
                 padding: const EdgeInsets.fromLTRB(4, 0, 4, 14),
                 child: Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Aktivitas terbaru',
                         style: TextStyle(
-                          color: Color(0xFF243042),
+                          color: scheme.onSurface,
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                         ),
@@ -1273,13 +1282,13 @@ class _ActivityTabState extends State<_ActivityTab> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE8F3E8),
+                        color: scheme.secondaryContainer,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         '${rows.length} aktivitas',
-                        style: const TextStyle(
-                          color: Color(0xFF1B5E20),
+                        style: TextStyle(
+                          color: scheme.onSecondaryContainer,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
@@ -1307,6 +1316,7 @@ class _ActivityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final user = asJsonMap(row['users']);
     final activity = jsonString(row['aktivitas'], 'Aktivitas');
     final rawDate = jsonString(row['waktu']);
@@ -1315,14 +1325,18 @@ class _ActivityCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: scheme.surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE8EDE6)),
-          boxShadow: const [
+          border: Border.all(color: scheme.outlineVariant),
+          boxShadow: [
             BoxShadow(
-              color: Color(0x080F2414),
+              color: Colors.black.withValues(
+                alpha: Theme.of(context).brightness == Brightness.dark
+                    ? 0.16
+                    : 0.035,
+              ),
               blurRadius: 12,
-              offset: Offset(0, 4),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -1333,12 +1347,12 @@ class _ActivityCard extends StatelessWidget {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: const Color(0xFFEAF3EC),
+                color: scheme.secondaryContainer,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.history_rounded,
-                color: Color(0xFF1B5E20),
+                color: scheme.primary,
                 size: 21,
               ),
             ),
@@ -1349,8 +1363,8 @@ class _ActivityCard extends StatelessWidget {
                 children: [
                   Text(
                     activity,
-                    style: const TextStyle(
-                      color: Color(0xFF243042),
+                    style: TextStyle(
+                      color: scheme.onSurface,
                       fontSize: 14,
                       height: 1.3,
                       fontWeight: FontWeight.w700,
@@ -1359,8 +1373,8 @@ class _ActivityCard extends StatelessWidget {
                   const SizedBox(height: 5),
                   Text(
                     jsonString(user?['nama'], 'Pengguna'),
-                    style: const TextStyle(
-                      color: Color(0xFF718096),
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -1372,13 +1386,13 @@ class _ActivityCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFFF4F6F2),
+                color: scheme.surfaceContainerHigh,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 date,
-                style: const TextStyle(
-                  color: Color(0xFF66736A),
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                 ),

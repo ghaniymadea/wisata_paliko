@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:motion/motion.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -42,7 +43,20 @@ Future<void> main() async {
   if (configured) {
     await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
   }
-  runApp(LuakExplorerApp(configured: configured));
+  final preferences = await SharedPreferences.getInstance();
+  final savedTheme = preferences.getString('app_theme_mode');
+  final initialThemeMode = switch (savedTheme) {
+    'dark' => ThemeMode.dark,
+    'light' => ThemeMode.light,
+    _ => ThemeMode.light,
+  };
+  runApp(
+    LuakExplorerApp(
+      configured: configured,
+      preferences: preferences,
+      initialThemeMode: initialThemeMode,
+    ),
+  );
 }
 
 const _forest = Color(0xFF1B5E20);
@@ -300,9 +314,14 @@ Future<void> _openStoryViewer(
 }
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({required this.configured, super.key});
+  const SplashScreen({
+    required this.configured,
+    required this.onThemeModeChanged,
+    super.key,
+  });
 
   final bool configured;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -313,6 +332,9 @@ class _SplashScreenState extends State<SplashScreen>
   late final AnimationController _controller;
   late final Animation<double> _fade;
   late final Animation<double> _scale;
+  late final Animation<double> _logoRotation;
+  late final Animation<double> _copyFade;
+  late final Animation<Offset> _copyOffset;
   Timer? _timer;
 
   @override
@@ -320,13 +342,35 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 850),
+      duration: const Duration(milliseconds: 1250),
     )..forward();
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _scale = Tween<double>(
-      begin: 0.82,
-      end: 1,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    _fade = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0, 0.76, curve: Curves.easeOutCubic),
+    );
+    _scale = Tween<double>(begin: 0.72, end: 1).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0, 0.78, curve: Curves.easeOutBack),
+      ),
+    );
+    _logoRotation = Tween<double>(begin: -0.08, end: 0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0, 0.72, curve: Curves.easeOutCubic),
+      ),
+    );
+    _copyFade = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.28, 1, curve: Curves.easeOut),
+    );
+    _copyOffset = Tween<Offset>(begin: const Offset(0, 0.18), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: const Interval(0.22, 0.88, curve: Curves.easeOutCubic),
+          ),
+        );
     _timer = Timer(const Duration(milliseconds: 1700), _openApp);
   }
 
@@ -337,10 +381,28 @@ class _SplashScreenState extends State<SplashScreen>
         transitionDuration: const Duration(milliseconds: 350),
         pageBuilder: (_, _, _) => SupabaseAuthGate(
           configured: widget.configured,
-          authenticatedBuilder: (context) => const ExplorerShell(),
+          authenticatedBuilder: (context) =>
+              ExplorerShell(onThemeModeChanged: widget.onThemeModeChanged),
         ),
-        transitionsBuilder: (_, animation, _, child) =>
-            FadeTransition(opacity: animation, child: child),
+        transitionsBuilder: (_, animation, _, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.035),
+                end: Offset.zero,
+              ).animate(curved),
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.985, end: 1).animate(curved),
+                child: child,
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -375,35 +437,57 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 92,
-                      height: 92,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.28),
+                    RotationTransition(
+                      turns: _logoRotation,
+                      child: Container(
+                        width: 104,
+                        height: 104,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(32),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.34),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.16),
+                              blurRadius: 34,
+                              offset: const Offset(0, 16),
+                            ),
+                          ],
                         ),
+                        child: const _LogoImage(size: 104),
                       ),
-                      child: const _LogoImage(size: 92),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'LUAK EXPLORER',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 2.2,
+                    FadeTransition(
+                      opacity: _copyFade,
+                      child: SlideTransition(
+                        position: _copyOffset,
+                        child: const Text(
+                          'LUAK EXPLORER',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 2.2,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Temukan cerita di setiap perjalanan',
-                      style: TextStyle(
-                        color: Color(0xFFE7F4E5),
-                        fontSize: 13,
-                        letterSpacing: 0.3,
+                    FadeTransition(
+                      opacity: _copyFade,
+                      child: SlideTransition(
+                        position: _copyOffset,
+                        child: const Text(
+                          'Temukan cerita di setiap perjalanan',
+                          style: TextStyle(
+                            color: Color(0xFFE7F4E5),
+                            fontSize: 13,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 34),
@@ -442,7 +526,7 @@ class _SplashScreenState extends State<SplashScreen>
   );
 }
 
-class _SplashOrb extends StatelessWidget {
+class _SplashOrb extends StatefulWidget {
   const _SplashOrb({
     required this.size,
     this.top,
@@ -458,26 +542,89 @@ class _SplashOrb extends StatelessWidget {
   final double? left;
 
   @override
+  State<_SplashOrb> createState() => _SplashOrbState();
+}
+
+class _SplashOrbState extends State<_SplashOrb>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3600),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => Positioned(
-    top: top,
-    right: right,
-    bottom: bottom,
-    left: left,
-    child: Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.07),
-        shape: BoxShape.circle,
+    top: widget.top,
+    right: widget.right,
+    bottom: widget.bottom,
+    left: widget.left,
+    child: AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) => Opacity(
+        opacity: 0.55 + _controller.value * 0.35,
+        child: Transform.scale(
+          scale: 0.94 + _controller.value * 0.12,
+          child: child,
+        ),
+      ),
+      child: Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.07),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.white.withValues(alpha: 0.04),
+              blurRadius: 48,
+              spreadRadius: 8,
+            ),
+          ],
+        ),
       ),
     ),
   );
 }
 
-class LuakExplorerApp extends StatelessWidget {
-  const LuakExplorerApp({required this.configured, super.key});
+class LuakExplorerApp extends StatefulWidget {
+  const LuakExplorerApp({
+    required this.configured,
+    required this.preferences,
+    required this.initialThemeMode,
+    super.key,
+  });
 
   final bool configured;
+  final SharedPreferences preferences;
+  final ThemeMode initialThemeMode;
+
+  @override
+  State<LuakExplorerApp> createState() => _LuakExplorerAppState();
+}
+
+class _LuakExplorerAppState extends State<LuakExplorerApp> {
+  late ThemeMode _themeMode = widget.initialThemeMode;
+
+  void _setThemeMode(ThemeMode mode) {
+    if (_themeMode == mode) return;
+    setState(() => _themeMode = mode);
+    widget.preferences.setString(
+      'app_theme_mode',
+      mode == ThemeMode.dark ? 'dark' : 'light',
+    );
+  }
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -613,12 +760,81 @@ class LuakExplorerApp extends StatelessWidget {
         bodySmall: TextStyle(color: _muted, fontSize: 12, height: 1.4),
       ),
     ),
-    home: SplashScreen(configured: configured),
+    darkTheme: ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: const Color(0xFF101713),
+      colorScheme: ColorScheme.fromSeed(
+        brightness: Brightness.dark,
+        seedColor: const Color(0xFF75B977),
+        primary: const Color(0xFF8BCB8B),
+        secondary: const Color(0xFFE5AA6B),
+        surface: const Color(0xFF18211B),
+        onSurface: const Color(0xFFE6EEE7),
+        onSurfaceVariant: const Color(0xFFB1BEB2),
+        onSecondaryContainer: const Color(0xFFE1F0E2),
+      ),
+      textTheme: const TextTheme(
+        headlineSmall: TextStyle(
+          color: Color(0xFFE8F0E8),
+          fontSize: 24,
+          fontWeight: FontWeight.w800,
+        ),
+        titleLarge: TextStyle(
+          color: Color(0xFFE8F0E8),
+          fontSize: 19,
+          fontWeight: FontWeight.w800,
+        ),
+        titleMedium: TextStyle(
+          color: Color(0xFFE8F0E8),
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+        ),
+        bodyMedium: TextStyle(
+          color: Color(0xFFE2EAE2),
+          fontSize: 14,
+          height: 1.45,
+        ),
+        bodySmall: TextStyle(
+          color: Color(0xFFAAB8AB),
+          fontSize: 12,
+          height: 1.4,
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFF202B23),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 15,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFF354438)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFF354438)),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: const Color(0xFF18211B),
+        surfaceTintColor: const Color(0xFF18211B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+      ),
+    ),
+    themeMode: _themeMode,
+    home: SplashScreen(
+      configured: widget.configured,
+      onThemeModeChanged: _setThemeMode,
+    ),
   );
 }
 
 class ExplorerShell extends StatefulWidget {
-  const ExplorerShell({super.key});
+  const ExplorerShell({required this.onThemeModeChanged, super.key});
+
+  final ValueChanged<ThemeMode> onThemeModeChanged;
 
   @override
   State<ExplorerShell> createState() => _ExplorerShellState();
@@ -1151,6 +1367,7 @@ class _ExplorerShellState extends State<ExplorerShell>
         collections: _collections,
         publicCollections: _publicCollections,
         role: _role,
+        onThemeModeChanged: widget.onThemeModeChanged,
         repository: _repository,
         profileName: jsonString(_profile?['nama']).isNotEmpty
             ? jsonString(_profile?['nama'])
@@ -1211,6 +1428,7 @@ class _ExplorerShellState extends State<ExplorerShell>
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final scheme = Theme.of(context).colorScheme;
         final wide = constraints.maxWidth >= 900;
         final content = AnimatedBuilder(
           animation: _tabTransitionController,
@@ -1240,8 +1458,8 @@ class _ExplorerShellState extends State<ExplorerShell>
             ? content
             : RefreshIndicator(
                 onRefresh: _loadData,
-                color: _forest,
-                backgroundColor: Colors.white,
+                color: scheme.primary,
+                backgroundColor: scheme.surface,
                 displacement: 42,
                 edgeOffset: 8,
                 child: content,
@@ -1263,11 +1481,9 @@ class _ExplorerShellState extends State<ExplorerShell>
                             curve: Curves.easeOutQuart,
                             width: _railExtended ? 228 : 82,
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: scheme.surface,
                               borderRadius: BorderRadius.circular(26),
-                              border: Border.all(
-                                color: const Color(0xFFE8EEE6),
-                              ),
+                              border: Border.all(color: scheme.outlineVariant),
                               boxShadow: [
                                 BoxShadow(
                                   color: const Color(0x180F3D24),
@@ -1287,12 +1503,22 @@ class _ExplorerShellState extends State<ExplorerShell>
                               minWidth: 72,
                               minExtendedWidth: 218,
                               useIndicator: true,
-                              indicatorColor: const Color(0xFFE5F1E5),
+                              indicatorColor: scheme.secondaryContainer,
                               indicatorShape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                               ),
-                              selectedIconTheme: const IconThemeData(
-                                color: _forest,
+                              selectedIconTheme: IconThemeData(
+                                color: scheme.primary,
+                              ),
+                              unselectedIconTheme: IconThemeData(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                              selectedLabelTextStyle: TextStyle(
+                                color: scheme.primary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              unselectedLabelTextStyle: TextStyle(
+                                color: scheme.onSurfaceVariant,
                               ),
                               leading: Padding(
                                 padding: const EdgeInsets.only(
@@ -1346,9 +1572,11 @@ class _AnimatedBottomNavigationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    decoration: const BoxDecoration(
-      color: Colors.white,
-      border: Border(top: BorderSide(color: Color(0xFFE9EEE8))),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surface,
+      border: Border(
+        top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
     ),
     child: SafeArea(
       top: false,
@@ -1383,59 +1611,64 @@ class _BottomNavigationItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    selected: selected,
-    label: destination.label,
-    child: Tooltip(
-      message: destination.label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 280),
-          curve: Curves.easeOutCubic,
-          height: 58,
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          decoration: BoxDecoration(
-            color: selected ? const Color(0xFFE7F2E6) : Colors.transparent,
-            borderRadius: BorderRadius.circular(19),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedScale(
-                scale: selected ? 1.08 : 1,
-                duration: const Duration(milliseconds: 280),
-                curve: Curves.easeOutBack,
-                child: IconTheme(
-                  data: IconThemeData(
-                    size: 23,
-                    color: selected ? _forest : const Color(0xFF626B65),
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: destination.label,
+      child: Tooltip(
+        message: destination.label,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
+            height: 58,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: selected ? scheme.secondaryContainer : Colors.transparent,
+              borderRadius: BorderRadius.circular(19),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedScale(
+                  scale: selected ? 1.08 : 1,
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutBack,
+                  child: IconTheme(
+                    data: IconThemeData(
+                      size: 23,
+                      color: selected
+                          ? scheme.primary
+                          : scheme.onSurfaceVariant,
+                    ),
+                    child: selected
+                        ? destination.selectedIcon ?? destination.icon
+                        : destination.icon,
                   ),
-                  child: selected
-                      ? destination.selectedIcon ?? destination.icon
-                      : destination.icon,
                 ),
-              ),
-              const SizedBox(height: 3),
-              AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                style: TextStyle(
-                  fontSize: 10.5,
-                  height: 1.1,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  color: selected ? _forest : const Color(0xFF626B65),
+                const SizedBox(height: 3),
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    height: 1.1,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected ? scheme.primary : scheme.onSurfaceVariant,
+                  ),
+                  child: Text(destination.label, maxLines: 1),
                 ),
-                child: Text(destination.label, maxLines: 1),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class FeedPage extends StatefulWidget {
@@ -1534,14 +1767,14 @@ class _FeedPageState extends State<FeedPage> {
                 children: [
                   const _BrandMark(),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Luak Explorer',
                           style: TextStyle(
-                            color: _forest,
+                            color: Theme.of(context).colorScheme.primary,
                             fontSize: 20,
                             fontWeight: FontWeight.w900,
                           ),
@@ -1549,7 +1782,9 @@ class _FeedPageState extends State<FeedPage> {
                         Text(
                           'PAYAKUMBUH & 50 KOTA',
                           style: TextStyle(
-                            color: _muted,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
                             fontSize: 9,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.1,
@@ -1561,14 +1796,17 @@ class _FeedPageState extends State<FeedPage> {
                   IconButton(
                     tooltip: 'Cari tempat',
                     onPressed: widget.onExplore,
-                    icon: const Icon(Icons.search_rounded, color: _ink),
+                    icon: Icon(
+                      Icons.search_rounded,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                   IconButton(
                     tooltip: 'Notifikasi',
                     onPressed: widget.onNotifications,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.notifications_none_rounded,
-                      color: _ink,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -1585,13 +1823,22 @@ class _FeedPageState extends State<FeedPage> {
                   final compact = constraints.maxWidth < 760;
                   return Row(
                     children: [
-                      const Icon(Icons.explore, size: 16, color: _forest),
+                      Icon(
+                        Icons.explore,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       const SizedBox(width: 6),
-                      const Flexible(
+                      Flexible(
                         child: Text(
                           'Menjelajah sekitar',
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: _muted, fontSize: 12),
+                          style: TextStyle(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 5),
@@ -1600,25 +1847,31 @@ class _FeedPageState extends State<FeedPage> {
                           height: 34,
                           padding: const EdgeInsets.only(left: 10, right: 4),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.surface,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFE3EAE2)),
+                            border: Border.all(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .outlineVariant,
+                            ),
                           ),
                           child: DropdownButtonHideUnderline(
                             child: DropdownButton<String>(
                               value: activeCity,
                               isDense: true,
                               borderRadius: BorderRadius.circular(16),
-                              dropdownColor: Colors.white,
+                              dropdownColor: Theme.of(context)
+                                  .colorScheme
+                                  .surface,
                               elevation: 8,
                               menuMaxHeight: 260,
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.keyboard_arrow_down_rounded,
                                 size: 17,
-                                color: _forest,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
-                              style: const TextStyle(
-                                color: _ink,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -1634,7 +1887,9 @@ class _FeedPageState extends State<FeedPage> {
                                         ),
                                         decoration: BoxDecoration(
                                           color: city == activeCity
-                                              ? const Color(0xFFE8F3E8)
+                                              ? Theme.of(context)
+                                                    .colorScheme
+                                                    .secondaryContainer
                                               : Colors.transparent,
                                           borderRadius: BorderRadius.circular(
                                             10,
@@ -1649,10 +1904,12 @@ class _FeedPageState extends State<FeedPage> {
                                               ),
                                             ),
                                             if (city == activeCity)
-                                              const Icon(
+                                              Icon(
                                                 Icons.check_rounded,
                                                 size: 16,
-                                                color: _forest,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .primary,
                                               ),
                                           ],
                                         ),
@@ -1705,11 +1962,6 @@ class _FeedPageState extends State<FeedPage> {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const Spacer(),
-                    IconButton(
-                      onPressed: widget.onAddStory,
-                      tooltip: 'Tambah cerita',
-                      icon: const Icon(Icons.add_circle_outline_rounded),
-                    ),
                     TextButton(
                       onPressed: widget.onExplore,
                       child: const Text('Lihat semua'),
@@ -1805,15 +2057,16 @@ class _FeedPageState extends State<FeedPage> {
 
   Widget _filterChip(String label, int index) {
     final selected = _category == index;
+    final scheme = Theme.of(context).colorScheme;
     return ChoiceChip(
       label: Text(label),
       selected: selected,
       onSelected: (_) => setState(() => _category = index),
-      backgroundColor: Colors.white,
+      backgroundColor: scheme.surface,
       selectedColor: _forest,
-      side: BorderSide(color: selected ? _forest : const Color(0xFFE5E8E3)),
+      side: BorderSide(color: selected ? _forest : scheme.outlineVariant),
       labelStyle: TextStyle(
-        color: selected ? Colors.white : _ink,
+        color: selected ? Colors.white : scheme.onSurface,
         fontWeight: FontWeight.w600,
         fontSize: 12,
       ),
@@ -1828,34 +2081,37 @@ class _EngagementButton extends StatelessWidget {
     required this.icon,
     required this.count,
     required this.onPressed,
-    this.color = _ink,
+    this.color,
   });
 
   final IconData icon;
   final int count;
   final VoidCallback onPressed;
-  final Color color;
+  final Color? color;
 
   @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      IconButton(
-        visualDensity: VisualDensity.compact,
-        onPressed: onPressed,
-        icon: Icon(icon, size: 21, color: color),
-      ),
-      Text(
-        '$count',
-        style: const TextStyle(
-          color: _muted,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          onPressed: onPressed,
+          icon: Icon(icon, size: 21, color: color ?? scheme.onSurface),
         ),
-      ),
-      const SizedBox(width: 4),
-    ],
-  );
+        Text(
+          '$count',
+          style: TextStyle(
+            color: scheme.onSurfaceVariant,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(width: 4),
+      ],
+    );
+  }
 }
 
 class _FeedPost extends StatelessWidget {
@@ -1880,12 +2136,13 @@ class _FeedPost extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isFood = spot.category == 'Kuliner Legendaris';
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFECEFEA)),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -1893,9 +2150,9 @@ class _FeedPost extends StatelessWidget {
         children: [
           ListTile(
             contentPadding: const EdgeInsets.fromLTRB(14, 5, 12, 5),
-            leading: const CircleAvatar(
-              backgroundColor: Color(0xFFE8F1E8),
-              child: Icon(Icons.person, color: _forest),
+            leading: CircleAvatar(
+              backgroundColor: scheme.secondaryContainer,
+              child: Icon(Icons.person, color: scheme.primary),
             ),
             title: Row(
               children: [
@@ -1917,7 +2174,7 @@ class _FeedPost extends StatelessWidget {
               '@${spot.creatorUsername} · ${spot.area}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11, color: _muted),
+              style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
             ),
             trailing: PopupMenuButton<String>(
               tooltip: 'Opsi spot',
@@ -1989,7 +2246,9 @@ class _FeedPost extends StatelessWidget {
                       icon: spot.likedByMe
                           ? Icons.favorite_rounded
                           : Icons.favorite_border_rounded,
-                      color: spot.likedByMe ? const Color(0xFFE05252) : _ink,
+                      color: spot.likedByMe
+                          ? const Color(0xFFE05252)
+                          : scheme.onSurface,
                       count: spot.likeCount,
                       onPressed: onLike,
                     ),
@@ -2009,7 +2268,7 @@ class _FeedPost extends StatelessWidget {
                       onPressed: onSave,
                       icon: Icon(
                         isSaved ? Icons.bookmark : Icons.bookmark_border,
-                        color: isSaved ? _forest : _ink,
+                        color: isSaved ? scheme.primary : scheme.onSurface,
                       ),
                     ),
                   ],
@@ -2036,7 +2295,7 @@ class _FeedPost extends StatelessWidget {
                         child: Text(
                           isFood ? 'Tips Warga Lokal · Tulis tips' : spot.area,
                           style: TextStyle(
-                            color: isFood ? _clay : _muted,
+                            color: isFood ? _clay : scheme.onSurfaceVariant,
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                           ),
@@ -2044,7 +2303,10 @@ class _FeedPost extends StatelessWidget {
                       ),
                       Text(
                         _timeAgo(spot.createdAt),
-                        style: const TextStyle(color: _muted, fontSize: 10),
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 10,
+                        ),
                       ),
                     ],
                   ),
@@ -2099,6 +2361,7 @@ class _ExplorePageState extends State<ExplorePage> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final categories = [
       'Semua',
       ...widget.categories.map((row) => jsonString(row['nama'])),
@@ -2137,9 +2400,11 @@ class _ExplorePageState extends State<ExplorePage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Temukan pesona',
-                                  style: TextStyle(color: _muted),
+                                  style: TextStyle(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
                                 ),
                                 Text(
                                   'Luak Limopuluah',
@@ -2166,22 +2431,22 @@ class _ExplorePageState extends State<ExplorePage> {
                         onChanged: (value) => setState(() => _query = value),
                         decoration: InputDecoration(
                           hintText: 'Cari tempat, kecamatan, atau kuliner',
-                          prefixIcon: const Icon(Icons.search, color: _forest),
+                          prefixIcon: Icon(Icons.search, color: scheme.primary),
                           filled: true,
-                          fillColor: Colors.white,
+                          fillColor: scheme.surface,
                           contentPadding: const EdgeInsets.symmetric(
                             vertical: 14,
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE7EAE5),
+                            borderSide: BorderSide(
+                              color: scheme.outlineVariant,
                             ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE7EAE5),
+                            borderSide: BorderSide(
+                              color: scheme.outlineVariant,
                             ),
                           ),
                         ),
@@ -2207,15 +2472,17 @@ class _ExplorePageState extends State<ExplorePage> {
                         selected: selected,
                         onSelected: (_) => setState(() => _category = category),
                         showCheckmark: false,
-                        backgroundColor: Colors.white,
-                        selectedColor: _forest,
+                        backgroundColor: scheme.surfaceContainerLow,
+                        selectedColor: scheme.primary,
                         side: BorderSide(
-                          color: selected ? _forest : const Color(0xFFE5E8E3),
+                          color: selected
+                              ? scheme.primary
+                              : scheme.outlineVariant,
                         ),
                         labelStyle: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: selected ? Colors.white : _ink,
+                          color: selected ? scheme.onPrimary : scheme.onSurface,
                         ),
                       );
                     },
@@ -2245,7 +2512,10 @@ class _ExplorePageState extends State<ExplorePage> {
                       ),
                       Text(
                         '${filtered.length} tempat',
-                        style: const TextStyle(color: _muted, fontSize: 12),
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -2737,9 +3007,10 @@ class _SpotCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return MotionCard(
       child: Material(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(18),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -2792,8 +3063,8 @@ class _SpotCard extends StatelessWidget {
                       spot.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: _ink,
+                      style: TextStyle(
+                        color: scheme.onSurface,
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
                       ),
@@ -2801,10 +3072,10 @@ class _SpotCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.location_on_outlined,
                           size: 12,
-                          color: _muted,
+                          color: scheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 2),
                         Expanded(
@@ -2812,7 +3083,10 @@ class _SpotCard extends StatelessWidget {
                             spot.area,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 9, color: _muted),
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: scheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       ],
@@ -2822,11 +3096,11 @@ class _SpotCard extends StatelessWidget {
                       children: [
                         const Icon(Icons.verified, size: 13, color: _leaf),
                         const SizedBox(width: 3),
-                        const Text(
+                        Text(
                           'Terverifikasi',
                           style: TextStyle(
                             fontSize: 10,
-                            color: _muted,
+                            color: scheme.onSurfaceVariant,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -2972,7 +3246,13 @@ class NearbyPage extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                   ),
-                  const Text('Lihat peta', style: TextStyle(color: _forest)),
+                  Text(
+                    'Lihat peta',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -3180,9 +3460,11 @@ class _NearbyTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+      iconColor: scheme.onSurfaceVariant,
       leading: ClipRRect(
         borderRadius: BorderRadius.circular(13),
         child: SizedBox(
@@ -3197,9 +3479,9 @@ class _NearbyTile extends StatelessWidget {
       ),
       subtitle: Text(
         spot.area,
-        style: const TextStyle(fontSize: 11, color: _muted),
+        style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
       ),
-      trailing: const Icon(Icons.chevron_right, color: _muted),
+      trailing: Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
     );
   }
 }
@@ -3210,6 +3492,7 @@ class SavedPage extends StatefulWidget {
     required this.collections,
     required this.publicCollections,
     required this.role,
+    required this.onThemeModeChanged,
     required this.repository,
     required this.profileName,
     required this.username,
@@ -3225,6 +3508,7 @@ class SavedPage extends StatefulWidget {
   final List<TravelCollection> collections;
   final List<TravelCollection> publicCollections;
   final AppRole role;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
   final ExplorerRepository repository;
   final String profileName;
   final String username;
@@ -3260,11 +3544,7 @@ class _SavedPageState extends State<SavedPage> {
                   Expanded(
                     child: Text(
                       'Profil',
-                      style: const TextStyle(
-                        color: _ink,
-                        fontSize: 23,
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: Theme.of(context).textTheme.headlineSmall,
                     ),
                   ),
                   IconButton.filledTonal(
@@ -3410,9 +3690,11 @@ class _SavedPageState extends State<SavedPage> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 15),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFFE8EDE6)),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -3423,13 +3705,44 @@ class _SavedPageState extends State<SavedPage> {
                     Container(
                       width: 1,
                       height: 34,
-                      color: const Color(0xFFE8EDE6),
+                      color: Theme.of(context).colorScheme.outlineVariant,
                     ),
                     _Stat(
                       value: '${widget.collections.length}',
                       label: 'Koleksi saya',
                     ),
                   ],
+                ),
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+            sliver: SliverToBoxAdapter(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                ),
+                child: SwitchListTile.adaptive(
+                  value: Theme.of(context).brightness == Brightness.dark,
+                  onChanged: (dark) => widget.onThemeModeChanged(
+                    dark ? ThemeMode.dark : ThemeMode.light,
+                  ),
+                  secondary: Icon(
+                    Theme.of(context).brightness == Brightness.dark
+                        ? Icons.dark_mode_rounded
+                        : Icons.light_mode_rounded,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  title: const Text('Mode gelap'),
+                  subtitle: const Text('Sesuaikan tampilan aplikasi'),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
                 ),
               ),
             ),
@@ -3620,18 +3933,19 @@ class _SavedPageState extends State<SavedPage> {
 
   Widget _viewChip(String label, int index) {
     final selected = _view == index;
+    final colors = Theme.of(context).colorScheme;
     return ChoiceChip(
       label: Text(label),
       selected: selected,
       onSelected: (_) => setState(() => _view = index),
       showCheckmark: false,
-      backgroundColor: Colors.white,
-      selectedColor: const Color(0xFFE5F1E5),
+      backgroundColor: colors.surfaceContainerLow,
+      selectedColor: colors.secondaryContainer,
       side: BorderSide(
-        color: selected ? const Color(0xFFB7D1B7) : const Color(0xFFE5E8E3),
+        color: selected ? colors.primary : colors.outlineVariant,
       ),
       labelStyle: TextStyle(
-        color: selected ? _forest : _ink,
+        color: selected ? colors.onSecondaryContainer : colors.onSurface,
         fontSize: 12,
         fontWeight: FontWeight.w700,
       ),
@@ -4333,6 +4647,7 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
   @override
   Widget build(BuildContext context) {
     final spot = widget.spot;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       body: LenisScroll(
         child: CustomScrollView(
@@ -4505,16 +4820,16 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(15),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: const Color(0xFFECEFEA)),
+                      color: scheme.surface,
+                      border: Border.all(color: scheme.outlineVariant),
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: Text(
                       spot.description.isEmpty
                           ? 'Belum ada ringkasan untuk spot ini.'
                           : spot.description,
-                      style: const TextStyle(
-                        color: _muted,
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
                         height: 1.65,
                         fontSize: 13,
                       ),
@@ -4621,15 +4936,15 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
       bottomNavigationBar: SafeArea(
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(top: BorderSide(color: Color(0xFFECEFEA))),
+          decoration: BoxDecoration(
+            color: scheme.surface,
+            border: Border(top: BorderSide(color: scheme.outlineVariant)),
           ),
           child: Row(
             children: [
               Icon(
                 _isSaved ? Icons.bookmark : Icons.bookmark_border,
-                color: _forest,
+                color: scheme.primary,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -4660,6 +4975,7 @@ class _InfoGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final items = [
       _InfoItem(
         icon: Icons.category_outlined,
@@ -4685,8 +5001,8 @@ class _InfoGrid extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFECEFEA)),
+        color: scheme.surface,
+        border: Border.all(color: scheme.outlineVariant),
         borderRadius: BorderRadius.circular(18),
       ),
       child: GridView.count(
@@ -4715,16 +5031,17 @@ class _InfoItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
         Container(
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: const Color(0xFFE8F1E8),
+            color: scheme.secondaryContainer,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon, size: 18, color: _forest),
+          child: Icon(icon, size: 18, color: scheme.primary),
         ),
         const SizedBox(width: 9),
         Expanded(
@@ -4736,8 +5053,8 @@ class _InfoItem extends StatelessWidget {
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: _muted,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 9,
                   fontWeight: FontWeight.w800,
                 ),
@@ -4747,8 +5064,8 @@ class _InfoItem extends StatelessWidget {
                 value,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: _ink,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 11,
                   height: 1.2,
                   fontWeight: FontWeight.w700,
@@ -4775,22 +5092,26 @@ class _SectionHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Icon(icon, size: 19, color: _forest),
+        Icon(icon, size: 19, color: scheme.primary),
         const SizedBox(width: 7),
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
-              color: _ink,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 16,
               fontWeight: FontWeight.w800,
             ),
           ),
         ),
         if (trailing != null)
-          Text(trailing!, style: const TextStyle(color: _muted, fontSize: 11)),
+          Text(
+            trailing!,
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11),
+          ),
       ],
     );
   }
@@ -4809,17 +5130,18 @@ class _TipRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return MotionCard(
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(
-          color: const Color(0xFFEFF4EB),
+          color: scheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(13),
         ),
         child: Row(
           children: [
-            Icon(icon, color: _forest, size: 20),
+            Icon(icon, color: scheme.primary, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -4827,14 +5149,18 @@ class _TipRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
+                      color: scheme.onSurface,
                       fontWeight: FontWeight.w800,
                       fontSize: 11,
                     ),
                   ),
                   Text(
                     detail,
-                    style: const TextStyle(color: _muted, fontSize: 10),
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 10,
+                    ),
                   ),
                 ],
               ),
@@ -4854,12 +5180,13 @@ class _ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return MotionCard(
       child: Container(
         padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: const Color(0xFFECEFEA)),
+          color: scheme.surface,
+          border: Border.all(color: scheme.outlineVariant),
           borderRadius: BorderRadius.circular(15),
         ),
         child: Column(
@@ -4867,10 +5194,10 @@ class _ReviewCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   radius: 17,
-                  backgroundColor: Color(0xFFE8F1E8),
-                  child: Icon(Icons.person, color: _forest, size: 19),
+                  backgroundColor: scheme.secondaryContainer,
+                  child: Icon(Icons.person, color: scheme.primary, size: 19),
                 ),
                 const SizedBox(width: 9),
                 Expanded(
@@ -4886,7 +5213,10 @@ class _ReviewCard extends StatelessWidget {
                       ),
                       Text(
                         tip.createdAt.toLocal().toString().split(' ').first,
-                        style: const TextStyle(color: _muted, fontSize: 10),
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 10,
+                        ),
                       ),
                     ],
                   ),
@@ -4923,15 +5253,24 @@ class _ReviewCard extends StatelessWidget {
                     size: 15,
                   ),
                 ),
-                SizedBox(width: 5),
+                const SizedBox(width: 5),
                 Text(
                   'Membantu (${tip.voteCount})',
-                  style: TextStyle(color: _muted, fontSize: 10),
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 10,
+                  ),
                 ),
-                SizedBox(width: 15),
-                Icon(Icons.reply, color: _muted, size: 15),
-                SizedBox(width: 5),
-                Text('Tanggapi', style: TextStyle(color: _muted, fontSize: 10)),
+                const SizedBox(width: 15),
+                Icon(Icons.reply, color: scheme.onSurfaceVariant, size: 15),
+                const SizedBox(width: 5),
+                Text(
+                  'Tanggapi',
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 10,
+                  ),
+                ),
               ],
             ),
           ],
@@ -4949,13 +5288,14 @@ class _Stat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Expanded(
       child: Column(
         children: [
           Text(
             value,
-            style: const TextStyle(
-              color: _ink,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 19,
               fontWeight: FontWeight.w900,
             ),
@@ -4964,8 +5304,8 @@ class _Stat extends StatelessWidget {
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: _muted,
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
               fontSize: 10,
               fontWeight: FontWeight.w600,
             ),
@@ -4984,13 +5324,14 @@ class _BoardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return MotionCard(
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFECEFEA)),
+          border: Border.all(color: colors.outlineVariant),
         ),
         child: ListTile(
           onTap: onTap,
@@ -5005,7 +5346,11 @@ class _BoardCard extends StatelessWidget {
           ),
           title: Text(
             collection.title,
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+            style: TextStyle(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+            ),
           ),
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 3),
@@ -5013,12 +5358,16 @@ class _BoardCard extends StatelessWidget {
               '${collection.description.isEmpty ? 'Koleksi perjalanan' : collection.description}\n'
               '${collection.spotCount} spot · '
               '${collection.duration.isEmpty ? '' : '${collection.duration} · '}${collection.isPublic ? 'Publik' : 'Pribadi'}',
-              style: const TextStyle(color: _muted, fontSize: 10, height: 1.5),
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
+                fontSize: 10,
+                height: 1.5,
+              ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          trailing: const Icon(Icons.chevron_right, color: _muted),
+          trailing: Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
           isThreeLine: true,
         ),
       ),
@@ -5040,6 +5389,7 @@ class CollectionDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: Text(collection.title)),
       body: FutureBuilder<List<CollectionEntry>>(
@@ -5052,6 +5402,7 @@ class CollectionDetailPage extends StatelessWidget {
                 child: Text(
                   'Isi koleksi gagal dimuat: ${snapshot.error}',
                   textAlign: TextAlign.center,
+                  style: TextStyle(color: colors.onSurfaceVariant),
                 ),
               ),
             );
@@ -5061,8 +5412,11 @@ class CollectionDetailPage extends StatelessWidget {
           }
           final items = snapshot.data ?? [];
           if (items.isEmpty) {
-            return const Center(
-              child: Text('Belum ada spot di dalam koleksi ini.'),
+            return Center(
+              child: Text(
+                'Belum ada spot di dalam koleksi ini.',
+                style: TextStyle(color: colors.onSurfaceVariant),
+              ),
             );
           }
           return ListView.separated(
@@ -5072,7 +5426,11 @@ class CollectionDetailPage extends StatelessWidget {
             itemBuilder: (context, index) {
               final item = items[index];
               return Card(
-                color: Colors.white,
+                color: colors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: colors.outlineVariant),
+                ),
                 child: ListTile(
                   onTap: () => onOpenSpot(item.spot),
                   leading: ClipRRect(
@@ -5085,7 +5443,10 @@ class CollectionDetailPage extends StatelessWidget {
                   ),
                   title: Text(
                     item.spot.name,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   subtitle: Text(
                     item.curatorNote.isEmpty
@@ -5093,11 +5454,12 @@ class CollectionDetailPage extends StatelessWidget {
                         : '${item.spot.area}\n${item.curatorNote}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: colors.onSurfaceVariant),
                   ),
                   trailing: Text(
                     '${item.position}',
-                    style: const TextStyle(
-                      color: _forest,
+                    style: TextStyle(
+                      color: colors.primary,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -5178,18 +5540,25 @@ class _AddStoryBubble extends StatelessWidget {
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: const Color(0xFFE8F1E8),
+              color: Theme.of(context).colorScheme.secondaryContainer,
               shape: BoxShape.circle,
-              border: Border.all(color: _forest, width: 2),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.primary,
+                width: 2,
+              ),
             ),
-            child: const Icon(Icons.add_rounded, color: _forest, size: 30),
+            child: Icon(
+              Icons.add_rounded,
+              color: Theme.of(context).colorScheme.primary,
+              size: 30,
+            ),
           ),
           const SizedBox(height: 5),
-          const Text(
+          Text(
             'Tambah',
             maxLines: 1,
             style: TextStyle(
-              color: _ink,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 10,
               fontWeight: FontWeight.w600,
             ),
@@ -5242,8 +5611,8 @@ class _StoryBubble extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _ink,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
               ),
@@ -5264,7 +5633,7 @@ class _BrandMark extends StatelessWidget {
       width: 42,
       height: 42,
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F1E8),
+        color: Theme.of(context).colorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(14),
       ),
       child: const _LogoImage(size: 42),

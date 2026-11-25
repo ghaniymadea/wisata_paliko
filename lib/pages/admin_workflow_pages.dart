@@ -66,59 +66,61 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         );
       }
       final stats = snapshot.data!;
+      final isDark = Theme.of(context).brightness == Brightness.dark;
       final metrics = [
         (
           label: 'Pengguna',
           value: stats['total_pengguna'],
           icon: Icons.people_alt_outlined,
-          color: const Color(0xFF1B5E20),
+          color: isDark ? const Color(0xFF8BCB8B) : const Color(0xFF1B5E20),
           tint: const Color(0xFFE8F3E8),
         ),
         (
           label: 'Kurator',
           value: stats['total_kurator'],
           icon: Icons.verified_user_outlined,
-          color: const Color(0xFF5B4AA5),
+          color: isDark ? const Color(0xFFB8A7FF) : const Color(0xFF5B4AA5),
           tint: const Color(0xFFF0EDFA),
         ),
         (
           label: 'Spot menunggu',
           value: stats['spot_menunggu'],
           icon: Icons.pending_actions_outlined,
-          color: const Color(0xFFB26A12),
+          color: isDark ? const Color(0xFFFFBF70) : const Color(0xFFB26A12),
           tint: const Color(0xFFFFF3DF),
         ),
         (
           label: 'Spot terverifikasi',
           value: stats['spot_terverifikasi'],
           icon: Icons.place_outlined,
-          color: const Color(0xFF287A62),
+          color: isDark ? const Color(0xFF73D6B2) : const Color(0xFF287A62),
           tint: const Color(0xFFE6F4EF),
         ),
         (
           label: 'Spot ditolak',
           value: stats['spot_ditolak'],
           icon: Icons.block_outlined,
-          color: const Color(0xFFB1443C),
+          color: isDark ? const Color(0xFFFF8A80) : const Color(0xFFB1443C),
           tint: const Color(0xFFFCEBE9),
         ),
         (
           label: 'Laporan baru',
           value: stats['laporan_baru'],
           icon: Icons.flag_outlined,
-          color: const Color(0xFFB1443C),
+          color: isDark ? const Color(0xFFFF8A80) : const Color(0xFFB1443C),
           tint: const Color(0xFFFCEBE9),
         ),
         (
           label: 'Pengajuan kurator',
           value: stats['pengajuan_kurator_menunggu'],
           icon: Icons.person_add_alt_1_outlined,
-          color: const Color(0xFF3568A8),
+          color: isDark ? const Color(0xFF80B7FF) : const Color(0xFF3568A8),
           tint: const Color(0xFFEAF1FA),
         ),
       ];
       return LayoutBuilder(
         builder: (context, constraints) {
+          final scheme = Theme.of(context).colorScheme;
           final columns = constraints.maxWidth >= 900
               ? 4
               : constraints.maxWidth >= 600
@@ -140,14 +142,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Ringkasan Admin',
                             style: TextStyle(
-                              color: Color(0xFF243042),
+                              color: scheme.onSurface,
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
                             ),
@@ -156,7 +158,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           Text(
                             'Pantau kondisi komunitas dan konten.',
                             style: TextStyle(
-                              color: Color(0xFF718096),
+                              color: scheme.onSurfaceVariant,
                               fontSize: 12,
                             ),
                           ),
@@ -368,61 +370,68 @@ class _StatCard extends StatelessWidget {
   final Color tint;
 
   @override
-  Widget build(BuildContext context) => MotionCard(
-    child: Container(
-      width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 132),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE8EDE6)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x060F2414),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return MotionCard(
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(minHeight: 132),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: scheme.outlineVariant),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(
+                alpha: Theme.of(context).brightness == Brightness.dark
+                    ? 0.16
+                    : 0.035,
+              ),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: tint,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 19),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '$value',
+              style: TextStyle(
+                color: color,
+                fontSize: 24,
+                height: 1,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
+                fontSize: 11,
+                height: 1.25,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: tint,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 19),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '$value',
-            style: TextStyle(
-              color: color,
-              fontSize: 24,
-              height: 1,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFF66736A),
-              fontSize: 11,
-              height: 1.25,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
+    );
+  }
 }
 
 class _AdminEmptyState extends StatelessWidget {
@@ -440,6 +449,7 @@ class _AdminEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final content = Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -450,17 +460,17 @@ class _AdminEmptyState extends StatelessWidget {
               width: 68,
               height: 68,
               decoration: BoxDecoration(
-                color: const Color(0xFFEAF3EC),
+                color: scheme.secondaryContainer,
                 borderRadius: BorderRadius.circular(22),
               ),
-              child: Icon(icon, color: const Color(0xFF1B5E20), size: 30),
+              child: Icon(icon, color: scheme.primary, size: 30),
             ),
             const SizedBox(height: 14),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF243042),
+              style: TextStyle(
+                color: scheme.onSurface,
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
               ),
@@ -469,8 +479,8 @@ class _AdminEmptyState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF718096),
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
                 fontSize: 12,
                 height: 1.5,
               ),
@@ -517,56 +527,62 @@ class _AdminListHeader extends StatelessWidget {
   final VoidCallback? onRefresh;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(2, 0, 2, 4),
-    child: Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Color(0xFF243042),
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 0, 2, 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: scheme.onSurface,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: const TextStyle(color: Color(0xFF718096), fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        if (onRefresh != null)
-          IconButton.filledTonal(
-            tooltip: 'Muat ulang',
-            onPressed: onRefresh,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        if (onRefresh != null) const SizedBox(width: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE8F3E8),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            '$count',
-            style: const TextStyle(
-              color: Color(0xFF1B5E20),
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-      ],
-    ),
-  );
+          const SizedBox(width: 8),
+          if (onRefresh != null)
+            IconButton.filledTonal(
+              tooltip: 'Muat ulang',
+              onPressed: onRefresh,
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+          if (onRefresh != null) const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: scheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '$count',
+              style: TextStyle(
+                color: scheme.onSecondaryContainer,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class AdminReportsPage extends StatefulWidget {
@@ -684,10 +700,12 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
             final report = reports[index - 1];
             return ListTile(
               contentPadding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
-              tileColor: Colors.white,
+              tileColor: Theme.of(context).colorScheme.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
-                side: const BorderSide(color: Color(0xFFE8EDE6)),
+                side: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
               ),
               leading: Container(
                 width: 42,
@@ -702,13 +720,13 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                   size: 20,
                 ),
               ),
-              titleTextStyle: const TextStyle(
-                color: Color(0xFF243042),
+              titleTextStyle: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
               ),
-              subtitleTextStyle: const TextStyle(
-                color: Color(0xFF718096),
+              subtitleTextStyle: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 12,
                 height: 1.45,
               ),
@@ -855,10 +873,12 @@ class _CuratorApplicationsPageState extends State<CuratorApplicationsPage> {
             final user = asJsonMap(application['users']);
             return ListTile(
               contentPadding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
-              tileColor: Colors.white,
+              tileColor: Theme.of(context).colorScheme.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
-                side: const BorderSide(color: Color(0xFFE8EDE6)),
+                side: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
               ),
               leading: CircleAvatar(
                 radius: 21,
@@ -876,13 +896,13 @@ class _CuratorApplicationsPageState extends State<CuratorApplicationsPage> {
                   ),
                 ),
               ),
-              titleTextStyle: const TextStyle(
-                color: Color(0xFF243042),
+              titleTextStyle: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
               ),
-              subtitleTextStyle: const TextStyle(
-                color: Color(0xFF718096),
+              subtitleTextStyle: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 12,
                 height: 1.45,
               ),
@@ -989,20 +1009,22 @@ class _NotificationsPageState extends State<NotificationsPage> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        const Text(
+                        Text(
                           'Belum ada notifikasi',
                           style: TextStyle(
-                            color: Color(0xFF243042),
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 17,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                         const SizedBox(height: 6),
-                        const Text(
+                        Text(
                           'Informasi penting tentang aktivitasmu akan muncul di sini.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: Color(0xFF718096),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
                             height: 1.5,
                           ),
                         ),
@@ -1027,11 +1049,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 padding: const EdgeInsets.fromLTRB(4, 0, 4, 14),
                 child: Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Aktivitas terbaru',
                         style: TextStyle(
-                          color: Color(0xFF243042),
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                         ),
@@ -1044,13 +1066,17 @@ class _NotificationsPageState extends State<NotificationsPage> {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE8F3E8),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .secondaryContainer,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
                           '$unreadCount belum dibaca',
-                          style: const TextStyle(
-                            color: Color(0xFF1B5E20),
+                          style: TextStyle(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSecondaryContainer,
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                           ),
@@ -1083,10 +1109,12 @@ class _NotificationCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: read ? Colors.white : const Color(0xFFF3F8F1),
+          color: read
+              ? Theme.of(context).colorScheme.surface
+              : Theme.of(context).colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: read ? const Color(0xFFE8EDE6) : const Color(0xFFD9E9D7),
+            color: Theme.of(context).colorScheme.outlineVariant,
           ),
           boxShadow: const [
             BoxShadow(
@@ -1122,7 +1150,7 @@ class _NotificationCard extends StatelessWidget {
                   Text(
                     jsonString(notification['judul'], 'Notifikasi'),
                     style: TextStyle(
-                      color: const Color(0xFF243042),
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 14,
                       height: 1.3,
                       fontWeight: read ? FontWeight.w600 : FontWeight.w800,
@@ -1131,8 +1159,8 @@ class _NotificationCard extends StatelessWidget {
                   const SizedBox(height: 5),
                   Text(
                     jsonString(notification['isi']),
-                    style: const TextStyle(
-                      color: Color(0xFF66736A),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 12,
                       height: 1.5,
                     ),
