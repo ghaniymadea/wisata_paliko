@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../widgets/brand_wordmark.dart';
+
 class SupabaseAuthGate extends StatelessWidget {
   const SupabaseAuthGate({
     required this.configured,
@@ -391,14 +393,11 @@ class _SignInPageState extends State<SignInPage>
                 const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'LUAK EXPLORER',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.1,
-                      ),
+                    BrandWordmark(
+                      text: 'LUAK EXPLORER',
+                      fontSize: 13,
+                      letterSpacing: 0.8,
+                      onDarkSurface: true,
                     ),
                     SizedBox(height: 4),
                     Text(

@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -18,6 +20,7 @@ import 'pages/admin_workflow_pages.dart';
 import 'pages/role_pages.dart';
 import 'widgets/motion_card.dart';
 import 'widgets/lenis_scroll.dart';
+import 'widgets/brand_wordmark.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -419,14 +422,20 @@ class _SplashScreenState extends State<SplashScreen>
     body: DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF123D28), Color(0xFF237447), Color(0xFF8CBF72)],
+          colors: [
+            Color(0xFF0B2418),
+            Color(0xFF123D28),
+            Color(0xFF1D6540),
+            Color(0xFF3E8050),
+          ],
           begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          end: Alignment.bottomCenter,
         ),
       ),
       child: Stack(
         fit: StackFit.expand,
         children: [
+          const CustomPaint(painter: _SplashBackdropPainter()),
           const _SplashOrb(size: 250, top: -80, right: -70),
           const _SplashOrb(size: 180, bottom: 100, left: -90),
           Center(
@@ -440,42 +449,60 @@ class _SplashScreenState extends State<SplashScreen>
                     RotationTransition(
                       turns: _logoRotation,
                       child: Container(
-                        width: 104,
-                        height: 104,
+                        width: 122,
+                        height: 122,
+                        padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(32),
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(38),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.34),
+                            color: Colors.white.withValues(alpha: 0.42),
+                            width: 1.2,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.16),
-                              blurRadius: 34,
-                              offset: const Offset(0, 16),
+                              color: const Color(0xFF06170E).withValues(alpha: 0.32),
+                              blurRadius: 48,
+                              offset: const Offset(0, 20),
                             ),
                           ],
                         ),
-                        child: const _LogoImage(size: 104),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(30),
+                          child: const _LogoImage(size: 104),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 26),
                     FadeTransition(
                       opacity: _copyFade,
                       child: SlideTransition(
                         position: _copyOffset,
                         child: const Text(
-                          'LUAK EXPLORER',
+                          'MENJELAJAHI RANAH LUAK',
                           style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
+                            color: Color(0xFFC5E4C2),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
                             letterSpacing: 2.2,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 9),
+                    FadeTransition(
+                      opacity: _copyFade,
+                      child: SlideTransition(
+                        position: _copyOffset,
+                        child: const BrandWordmark(
+                          text: 'LUAK EXPLORER',
+                          fontSize: 24,
+                          letterSpacing: 1.4,
+                          onDarkSurface: true,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     FadeTransition(
                       opacity: _copyFade,
                       child: SlideTransition(
@@ -483,21 +510,28 @@ class _SplashScreenState extends State<SplashScreen>
                         child: const Text(
                           'Temukan cerita di setiap perjalanan',
                           style: TextStyle(
-                            color: Color(0xFFE7F4E5),
+                            color: Color(0xFFD9EADB),
                             fontSize: 13,
                             letterSpacing: 0.3,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 34),
+                    const SizedBox(height: 28),
                     SizedBox(
-                      width: 110,
-                      child: LinearProgressIndicator(
-                        minHeight: 3,
-                        backgroundColor: Colors.white24,
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
+                      width: 46,
+                      child: Container(
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFB5D8A8),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFB5D8A8).withValues(alpha: 0.45),
+                              blurRadius: 12,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -514,6 +548,224 @@ class _SplashScreenState extends State<SplashScreen>
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Color(0xD9FFFFFF),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _SplashBackdropPainter extends CustomPainter {
+  const _SplashBackdropPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final width = size.width;
+    final height = size.height;
+    final compassCenter = Offset(width * 0.84, height * 0.2);
+    final compassRadius = math.min(width * 0.16, 76.0).toDouble();
+    final compassPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.075)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    canvas.drawCircle(compassCenter, compassRadius, compassPaint);
+    canvas.drawCircle(compassCenter, compassRadius * 0.82, compassPaint);
+    for (var tick = 0; tick < 16; tick++) {
+      final angle = tick * math.pi / 8;
+      final outer = compassRadius * (tick.isEven ? 0.94 : 0.98);
+      final inner = compassRadius * (tick.isEven ? 0.82 : 0.88);
+      canvas.drawLine(
+        compassCenter + Offset(math.cos(angle) * inner, math.sin(angle) * inner),
+        compassCenter + Offset(math.cos(angle) * outer, math.sin(angle) * outer),
+        compassPaint,
+      );
+    }
+
+    final farHill = ui.Path()
+      ..moveTo(0, height * 0.79)
+      ..quadraticBezierTo(width * 0.2, height * 0.68, width * 0.39, height * 0.8)
+      ..quadraticBezierTo(width * 0.61, height * 0.9, width * 0.79, height * 0.74)
+      ..quadraticBezierTo(width * 0.92, height * 0.65, width, height * 0.73)
+      ..lineTo(width, height)
+      ..lineTo(0, height)
+      ..close();
+    canvas.drawPath(
+      farHill,
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [Color(0x332B6945), Color(0x773D8051)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ).createShader(Offset.zero & size),
+    );
+
+    final nearHill = ui.Path()
+      ..moveTo(0, height * 0.9)
+      ..quadraticBezierTo(width * 0.24, height * 0.78, width * 0.45, height * 0.89)
+      ..quadraticBezierTo(width * 0.76, height * 1.02, width, height * 0.84)
+      ..lineTo(width, height)
+      ..lineTo(0, height)
+      ..close();
+    canvas.drawPath(
+      nearHill,
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [Color(0x44152F22), Color(0xAA0A1D13)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ).createShader(Offset.zero & size),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SplashBackdropPainter oldDelegate) => false;
+}
+
+class _SplashLoadingView extends StatefulWidget {
+  const _SplashLoadingView();
+
+  @override
+  State<_SplashLoadingView> createState() => _SplashLoadingViewState();
+}
+
+class _SplashLoadingViewState extends State<_SplashLoadingView>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Color(0xFF0B2418),
+            Color(0xFF123D28),
+            Color(0xFF1D6540),
+            Color(0xFF3E8050),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const CustomPaint(painter: _SplashBackdropPainter()),
+          const _SplashOrb(size: 250, top: -80, right: -70),
+          const _SplashOrb(size: 180, bottom: 100, left: -90),
+          Center(
+            child: AnimatedBuilder(
+              animation: _pulse,
+              builder: (context, child) => Transform.scale(
+                scale: 0.98 + _pulse.value * 0.02,
+                child: child,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 122,
+                    height: 122,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(38),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.42),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF06170E).withValues(alpha: 0.32),
+                          blurRadius: 48,
+                          offset: const Offset(0, 20),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(30),
+                      child: const _LogoImage(size: 104),
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  const Text(
+                    'MENJELAJAHI RANAH LUAK',
+                    style: TextStyle(
+                      color: Color(0xFFC5E4C2),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.2,
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  const BrandWordmark(
+                    text: 'LUAK EXPLORER',
+                    fontSize: 24,
+                    letterSpacing: 1.4,
+                    onDarkSurface: true,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Temukan cerita di setiap perjalanan',
+                    style: TextStyle(
+                      color: Color(0xFFD9EADB),
+                      fontSize: 13,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    width: 46,
+                    child: AnimatedBuilder(
+                      animation: _pulse,
+                      builder: (context, _) => Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          width: 18 + _pulse.value * 28,
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFB5D8A8),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFB5D8A8).withValues(
+                                  alpha: 0.4,
+                                ),
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 28,
+            child: Text(
+              'PAYAKUMBUH  ·  LIMA PULUH KOTA',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xCCFFFFFF),
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.5,
@@ -645,6 +897,7 @@ class _LuakExplorerAppState extends State<LuakExplorerApp> {
         elevation: 12,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
         titleTextStyle: const TextStyle(
+          fontFamily: 'serif',
           color: _ink,
           fontSize: 20,
           fontWeight: FontWeight.w800,
@@ -741,17 +994,20 @@ class _LuakExplorerAppState extends State<LuakExplorerApp> {
       ),
       textTheme: const TextTheme(
         headlineSmall: TextStyle(
+          fontFamily: 'serif',
           color: _ink,
           fontSize: 24,
           fontWeight: FontWeight.w800,
-          letterSpacing: -0.5,
+          letterSpacing: -0.35,
         ),
         titleLarge: TextStyle(
+          fontFamily: 'serif',
           color: _ink,
           fontSize: 19,
           fontWeight: FontWeight.w800,
         ),
         titleMedium: TextStyle(
+          fontFamily: 'serif',
           color: _ink,
           fontSize: 15,
           fontWeight: FontWeight.w700,
@@ -776,16 +1032,19 @@ class _LuakExplorerAppState extends State<LuakExplorerApp> {
       ),
       textTheme: const TextTheme(
         headlineSmall: TextStyle(
+          fontFamily: 'serif',
           color: Color(0xFFE8F0E8),
           fontSize: 24,
           fontWeight: FontWeight.w800,
         ),
         titleLarge: TextStyle(
+          fontFamily: 'serif',
           color: Color(0xFFE8F0E8),
           fontSize: 19,
           fontWeight: FontWeight.w800,
         ),
         titleMedium: TextStyle(
+          fontFamily: 'serif',
           color: Color(0xFFE8F0E8),
           fontSize: 15,
           fontWeight: FontWeight.w700,
@@ -1089,7 +1348,7 @@ class _ExplorerShellState extends State<ExplorerShell>
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<Spot>(
-                  value: selectedSpot,
+                  initialValue: selectedSpot,
                   decoration: InputDecoration(
                     labelText: 'Pilih spot',
                     prefixIcon: const Icon(Icons.location_on_outlined),
@@ -1263,7 +1522,7 @@ class _ExplorerShellState extends State<ExplorerShell>
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const _SplashLoadingView();
     }
     if (_loadError != null && !_hasLoaded) {
       return Scaffold(
@@ -1771,13 +2030,10 @@ class _FeedPageState extends State<FeedPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Luak Explorer',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        BrandWordmark(
+                          text: 'Luak Explorer',
+                          fontSize: 20,
+                          letterSpacing: 0.1,
                         ),
                         Text(
                           'PAYAKUMBUH & 50 KOTA',
@@ -5083,12 +5339,10 @@ class _SectionHeading extends StatelessWidget {
   const _SectionHeading({
     required this.icon,
     required this.title,
-    this.trailing,
   });
 
   final IconData icon;
   final String title;
-  final String? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -5107,11 +5361,6 @@ class _SectionHeading extends StatelessWidget {
             ),
           ),
         ),
-        if (trailing != null)
-          Text(
-            trailing!,
-            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11),
-          ),
       ],
     );
   }
