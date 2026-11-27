@@ -518,21 +518,26 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
                     const SizedBox(height: 28),
-                    SizedBox(
-                      width: 46,
-                      child: Container(
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFB5D8A8),
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFB5D8A8).withValues(alpha: 0.45),
-                              blurRadius: 12,
-                            ),
-                          ],
+                    const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFFB5D8A8),
+                          ),
                         ),
-                      ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Memuat aplikasi...',
+                          style: TextStyle(
+                            color: Color(0xFFD9EADB),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -728,30 +733,26 @@ class _SplashLoadingViewState extends State<_SplashLoadingView>
                     ),
                   ),
                   const SizedBox(height: 28),
-                  SizedBox(
-                    width: 46,
-                    child: AnimatedBuilder(
-                      animation: _pulse,
-                      builder: (context, _) => Align(
-                        alignment: Alignment.centerLeft,
-                        child: Container(
-                          width: 18 + _pulse.value * 28,
-                          height: 3,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFB5D8A8),
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFB5D8A8).withValues(
-                                  alpha: 0.4,
-                                ),
-                                blurRadius: 12,
-                              ),
-                            ],
-                          ),
+                  const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFFB5D8A8),
                         ),
                       ),
-                    ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Menyiapkan data...',
+                        style: TextStyle(
+                          color: Color(0xFFD9EADB),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1122,7 +1123,7 @@ class _ExplorerShellState extends State<ExplorerShell>
 
   void _setRailExtended(bool extended) {
     _railHoverTimer?.cancel();
-    _railHoverTimer = Timer(Duration(milliseconds: extended ? 70 : 220), () {
+    _railHoverTimer = Timer(Duration(milliseconds: extended ? 0 : 320), () {
       if (mounted && _railExtended != extended) {
         setState(() => _railExtended = extended);
       }
@@ -1134,16 +1135,16 @@ class _ExplorerShellState extends State<ExplorerShell>
     _tabTransitioning = true;
     try {
       await _tabTransitionController.animateTo(
-        0.5,
+        0.35,
         duration: const Duration(milliseconds: 140),
-        curve: Curves.easeInOutCubic,
+        curve: Curves.easeInCubic,
       );
       if (!mounted) return;
       setState(() => _tab = index);
-      await _tabTransitionController.animateBack(
-        0,
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeInOutCubic,
+      await _tabTransitionController.animateTo(
+        1,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
       );
     } on TickerCanceled {
       // Navigasi dapat berakhir ketika widget ini sedang dihapus.
@@ -1188,6 +1189,7 @@ class _ExplorerShellState extends State<ExplorerShell>
     _tabTransitionController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 220),
+      value: 1,
     );
     _loadData();
   }
@@ -1692,14 +1694,13 @@ class _ExplorerShellState extends State<ExplorerShell>
         final content = AnimatedBuilder(
           animation: _tabTransitionController,
           builder: (context, child) {
-            final value = _tabTransitionController.value;
-            final progress = value <= 0.5 ? value * 2 : (1 - value) * 2;
+            final progress = _tabTransitionController.value;
             return Opacity(
-              opacity: 1 - progress * 0.1,
+              opacity: 0.55 + progress * 0.45,
               child: Transform.translate(
-                offset: Offset(0, -7 * progress),
+                offset: Offset(0, 10 * (1 - progress)),
                 child: Transform.scale(
-                  scale: 1 - progress * 0.008,
+                  scale: 0.985 + progress * 0.015,
                   child: child,
                 ),
               ),
@@ -1736,8 +1737,8 @@ class _ExplorerShellState extends State<ExplorerShell>
                           onEnter: (_) => _setRailExtended(true),
                           onExit: (_) => _setRailExtended(false),
                           child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 520),
-                            curve: Curves.easeOutQuart,
+                            duration: const Duration(milliseconds: 320),
+                            curve: Curves.easeInOutCubic,
                             width: _railExtended ? 228 : 82,
                             decoration: BoxDecoration(
                               color: scheme.surface,
@@ -1752,49 +1753,80 @@ class _ExplorerShellState extends State<ExplorerShell>
                                 ),
                               ],
                             ),
-                            child: NavigationRail(
-                              selectedIndex: _tab,
-                              onDestinationSelected: _selectTab,
-                              extended: _railExtended,
-                              labelType: NavigationRailLabelType.none,
-                              backgroundColor: Colors.transparent,
-                              groupAlignment: -0.72,
-                              minWidth: 72,
-                              minExtendedWidth: 218,
-                              useIndicator: true,
-                              indicatorColor: scheme.secondaryContainer,
-                              indicatorShape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              selectedIconTheme: IconThemeData(
-                                color: scheme.primary,
-                              ),
-                              unselectedIconTheme: IconThemeData(
-                                color: scheme.onSurfaceVariant,
-                              ),
-                              selectedLabelTextStyle: TextStyle(
-                                color: scheme.primary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              unselectedLabelTextStyle: TextStyle(
-                                color: scheme.onSurfaceVariant,
-                              ),
-                              leading: Padding(
-                                padding: const EdgeInsets.only(
-                                  top: 8,
-                                  bottom: 14,
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(10, 14, 10, 22),
+                                  child: const _BrandMark(),
                                 ),
-                                child: const _BrandMark(),
-                              ),
-                              destinations: destinations
-                                  .map(
-                                    (item) => NavigationRailDestination(
-                                      icon: item.icon,
-                                      selectedIcon: item.selectedIcon,
-                                      label: Text(item.label),
-                                    ),
-                                  )
-                                  .toList(),
+                                Expanded(
+                                  child: ListView.builder(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    itemCount: destinations.length,
+                                    itemBuilder: (context, index) {
+                                      final item = destinations[index];
+                                      final selected = _tab == index;
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 7),
+                                        child: Material(
+                                          color: selected
+                                              ? scheme.secondaryContainer
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(14),
+                                          child: InkWell(
+                                            borderRadius: BorderRadius.circular(14),
+                                            onTap: () => _selectTab(index),
+                                            child: SizedBox(
+                                              height: 52,
+                                              child: Row(
+                                                children: [
+                                                  SizedBox(
+                                                    width: 64,
+                                                    child: Center(
+                                                      child: IconTheme(
+                                                        data: IconThemeData(
+                                                          color: selected
+                                                              ? scheme.primary
+                                                              : scheme.onSurfaceVariant,
+                                                        ),
+                                                        child: selected
+                                                            ? (item.selectedIcon ?? item.icon)
+                                                            : item.icon,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  ClipRect(
+                                                    child: AnimatedOpacity(
+                                                      opacity: _railExtended ? 1 : 0,
+                                                      duration: const Duration(milliseconds: 180),
+                                                      child: SizedBox(
+                                                        width: _railExtended ? 134 : 0,
+                                                        child: Text(
+                                                          item.label,
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.fade,
+                                                          style: TextStyle(
+                                                            color: selected
+                                                                ? scheme.primary
+                                                                : scheme.onSurfaceVariant,
+                                                            fontWeight: selected
+                                                                ? FontWeight.w700
+                                                                : FontWeight.w500,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
